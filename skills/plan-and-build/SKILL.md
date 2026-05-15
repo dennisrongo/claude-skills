@@ -1,6 +1,6 @@
 ---
 name: plan-and-build
-description: Plan-first feature builder. Grills the user about the feature until the design is unambiguous, presents a plan, gates on `ExitPlanMode` approval, then builds the feature using the project's existing patterns — TDD-first with NUnit when the work touches a .NET API (appending to the matching test class if one already exists), and writing migration files but never executing SQL or `dotnet ef database update`. Use this skill whenever the user says "build a feature", "add a feature", "implement this feature", "/plan-and-build", "plan and build", "new feature", or pastes a feature spec and asks you to design + implement it — even if they don't name the skill.
+description: Plan-first feature builder. Grills the user about the feature until the design is unambiguous, presents a plan, gates on `ExitPlanMode` approval, then builds the feature using the project's existing patterns — TDD-first with NUnit when the work touches a .NET API (appending to the matching test class if one already exists), and writing migration files but never executing SQL or `dotnet ef database update`. When Phase 3 hits a genuine design fork (e.g. service-layer vs. CQRS handler, sync vs. async, new table vs. nullable columns), runs **Design It Twice**: two parallel sub-agents each draft the strongest plan for one approach, then a debate round names the trade-offs and recommends one — the user sees a recommended plan with the rejected alternative noted so they can redirect. Skipped when an existing pattern in the repo already dictates the approach. Use this skill whenever the user says "build a feature", "add a feature", "implement this feature", "/plan-and-build", "plan and build", "new feature", or pastes a feature spec and asks you to design + implement it — even if they don't name the skill.
 ---
 
 # Plan and Build
@@ -66,9 +66,43 @@ Before designing, look at what the repo already does so the plan reuses it. Run 
 
 Record what you find. The plan will reference these directly so the user can see you're not inventing new patterns.
 
+**Library API lookup — use `context7` when available.** If the plan needs an API from a third-party library or framework that's pinned in this repo (e.g. EF Core 8, Next.js 15, Prisma 5, NextAuth v5, Stripe SDK), check `context7` (or any docs-MCP server in the environment) for the *current* docs before drafting the plan: `context7__resolve-library-id` → `context7__query-docs` for the specific topic. Training-data API knowledge can be a major version behind, and a plan built on the wrong API shape wastes a Plan Mode round. Skip the lookup for libraries the user has already named in this session or for general programming concepts — only reach for it when the plan depends on a specific library symbol or pattern.
+
 ### Phase 3 — Plan
 
-Enter Plan Mode (`EnterPlanMode`). The plan must include:
+#### Decision gate: single plan vs. Design It Twice
+
+Before drafting, ask: **is there a genuine design fork here that the existing codebase doesn't already resolve?**
+
+- **Single plan** — when Phase 2 found a clear precedent (e.g. every other feature in this codebase uses CQRS handlers, or the project's slice template dictates the layout). Draft one plan and proceed.
+- **Design It Twice** — when there's a real choice with real trade-offs, and Phase 2 didn't settle it. Typical forks:
+  - Service-layer method vs. CQRS handler
+  - New table vs. nullable columns on an existing table
+  - Sync request/response vs. background job + status endpoint
+  - In-process event vs. message-queue publish
+  - REST endpoint vs. WebSocket / SSE
+  - Lifting state up vs. introducing a context/store
+  - One denormalised read model vs. join at query time
+
+Don't manufacture a fork to perform ceremony. If the answer is clear, the single plan is faster *and* better.
+
+#### Design It Twice (when convened)
+
+1. **Name the axis.** State the single design choice the two plans disagree on in one sentence (e.g. *"Add an `OrderAuditLog` table vs. extend `Orders` with `priority_set_by_user_id` + `priority_set_at`."*). If you can't name the axis cleanly, you don't have a genuine fork — drop to single plan.
+2. **Spawn two planners in parallel.** Send a **single message** with 2 `Agent` calls (general-purpose). Each gets:
+   - Phase 1 grilling outputs (verbatim, including the canonical terminology).
+   - Phase 2 stack and convention findings (verbatim).
+   - The named axis and **one** side of it to defend.
+   - Instructions: "Draft the BEST plan for your assigned approach. Include the seven items below ([Plan contents](#plan-contents)). Defend why this approach beats the alternative *on this codebase*. Where you must invent a new pattern (no Phase 2 precedent), justify it. Report in ≤700 words."
+3. **Debate round.** When both plans return, write inline:
+   - **3 things Plan A does better than Plan B.**
+   - **3 things Plan B does better than Plan A.**
+   - **The recommendation** (one paragraph) — which plan, and why it wins on this codebase. Cite the Phase 1 / Phase 2 evidence that broke the tie.
+4. **Pick the recommended plan** as the one to present. Carry forward only the winning plan's contents — but keep a one-line note of the rejected alternative for the user.
+
+#### Plan contents
+
+Whether you drafted one plan or chose between two, the presented plan must include:
 
 1. **Restatement of the feature** in one short paragraph, using the project's canonical terminology from `CONTEXT.md` (if present).
 2. **Files to create**, grouped by layer, each with a one-line purpose.
@@ -82,7 +116,11 @@ Enter Plan Mode (`EnterPlanMode`). The plan must include:
 6. **Pattern reuse table.** Two columns: "New code I'm about to write" and "Existing example it follows" with a path. If a row has no existing example, justify the new pattern.
 7. **Open questions** still unresolved, if any. If there are any, loop back to Phase 1 — do not exit plan mode with open questions.
 
-Then exit with `ExitPlanMode` and wait. **Do not write a single file until the user approves the plan.** If the user pushes back, revise and re-present; don't half-implement against an unapproved plan.
+If Design It Twice ran, end the plan with: **"Considered alternative: `<approach B name>`. Rejected because `<one-line reason>`."** This lets the user redirect to B with a single sentence if they disagree.
+
+#### Enter and exit plan mode
+
+Enter Plan Mode (`EnterPlanMode`) to present. Then exit with `ExitPlanMode` and wait. **Do not write a single file until the user approves the plan.** If the user pushes back — including "actually let's go with the alternative" — revise and re-present; don't half-implement against an unapproved plan.
 
 ### Phase 4 — Build (test-first when an API changes)
 
@@ -173,6 +211,10 @@ When appending:
 - ❌ Writing production code before the test it makes pass (when the feature touches an API).
 - ❌ Creating `FooServiceTests2.cs` because `FooServiceTests.cs` already exists. Always append.
 - ❌ Inventing a new pattern for something the codebase already has a pattern for. If you can't find the precedent, ask before forking.
+- ❌ Running Design It Twice when the codebase already dictates the approach. Ceremony, not value.
+- ❌ Manufacturing a fake axis to perform a debate. If you can't name the axis in one sentence, you don't have a fork.
+- ❌ Spawning the two planners serially instead of in parallel — one message, two agents.
+- ❌ Presenting both plans to the user. The user sees the recommended plan plus a one-line "considered alternative" note — not two full plans to grade.
 - ❌ Running `dotnet ef database update`, `prisma migrate deploy`, or any DDL against the user's DB.
 - ❌ Running ad-hoc `SELECT` / `UPDATE` queries against the user's DB to "check something" — ask the user instead.
 - ❌ Block comments and "what this does" comments. Names should do that work.
