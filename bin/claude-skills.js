@@ -14,11 +14,12 @@ const VERSION = require('../package.json').version;
 
 function printHelp() {
   console.log(`
-${kleur.bold('claude-skills')} ${kleur.dim('v' + VERSION)}
+${kleur.bold('@dennisrongo/skills')} ${kleur.dim('v' + VERSION)}
 A curated library of Claude Code skills.
 
 ${kleur.bold('USAGE')}
-  npx claude-skills <command> [options]
+  npx @dennisrongo/skills <command> [options]
+  skills <command> [options]   ${kleur.dim('# after `npm install -g @dennisrongo/skills`')}
 
 ${kleur.bold('COMMANDS')}
   list                       List skills available in the library
@@ -38,11 +39,11 @@ ${kleur.bold('OPTIONS')}
   -v, --version              Show version
 
 ${kleur.bold('EXAMPLES')}
-  npx claude-skills list
-  npx claude-skills install              ${kleur.dim('# interactive picker')}
-  npx claude-skills install pdf docx     ${kleur.dim('# specific skills')}
-  npx claude-skills install --all -p     ${kleur.dim('# all skills, in project')}
-  npx claude-skills remove pdf
+  npx @dennisrongo/skills list
+  npx @dennisrongo/skills install              ${kleur.dim('# interactive picker')}
+  npx @dennisrongo/skills install pdf docx     ${kleur.dim('# specific skills')}
+  npx @dennisrongo/skills install --all -p     ${kleur.dim('# all skills, in project')}
+  npx @dennisrongo/skills remove pdf
 `);
 }
 
@@ -178,7 +179,7 @@ async function main() {
 
     default:
       console.error(kleur.red(`Unknown command: ${command}`));
-      console.error(kleur.dim(`Run "npx claude-skills help" to see available commands.`));
+      console.error(kleur.dim(`Run "npx @dennisrongo/skills help" to see available commands.`));
       process.exit(1);
   }
 }
