@@ -37,7 +37,9 @@ npm install -g @dennisrongo/skills
 claude-skills list
 ```
 
-### From GitHub (no npm publish needed)
+### From GitHub (for the latest `main`)
+
+Useful if you want changes that haven't been released to npm yet.
 
 ```bash
 npx github:dennisrongo/claude-skills list
