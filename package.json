@@ -1,0 +1,38 @@
+{
+  "name": "claude-skills",
+  "version": "0.1.0",
+  "description": "A curated, fine-tunable library of Claude Code skills. Install globally or per-project via npx.",
+  "bin": {
+    "claude-skills": "./bin/claude-skills.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "skills/",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "skills",
+    "anthropic",
+    "ai",
+    "cli"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^7.0.0",
+    "kleur": "^4.1.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/claude-skills.git"
+  }
+}
