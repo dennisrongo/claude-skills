@@ -8,7 +8,7 @@ A curated, fine-tunable library of [Claude Code](https://docs.claude.com/en/docs
 
 ### From npm (recommended)
 
-The package is published as [`@dennisrongo/skills`](https://www.npmjs.com/package/@dennisrongo/skills). The installed binary is `claude-skills`.
+The package is published as [`@dennisrongo/skills`](https://www.npmjs.com/package/@dennisrongo/skills). The installed binary is `skills`.
 
 ```bash
 # See what's in the library
@@ -34,7 +34,7 @@ Or install once and call it directly:
 
 ```bash
 npm install -g @dennisrongo/skills
-claude-skills list
+skills list
 ```
 
 ### From GitHub (for the latest `main`)
@@ -54,17 +54,17 @@ npx github:dennisrongo/claude-skills install
 
 ```bash
 # bash / zsh — add to ~/.bashrc or ~/.zshrc
-alias claude-skills="npx --yes github:dennisrongo/claude-skills"
+alias skills="npx --yes github:dennisrongo/claude-skills"
 
 # fish — add to ~/.config/fish/config.fish
-alias claude-skills "npx --yes github:dennisrongo/claude-skills"
+alias skills "npx --yes github:dennisrongo/claude-skills"
 ```
 
 Then:
 
 ```bash
-claude-skills list
-claude-skills install --all
+skills list
+skills install --all
 ```
 
 ### Pinning a version
@@ -101,7 +101,7 @@ node bin/claude-skills.js list
 | [`pr-review`](./skills/pr-review/SKILL.md) | Conduct a structured PR / diff review prioritized correctness → design → tests → security → performance → readability, with categorized feedback (`blocking` / `suggestion` / `question` / `nit` / `praise`). |
 | [`write-a-skill`](./skills/write-a-skill/SKILL.md) | Author a new Claude Code skill — interview-driven scaffolding that produces a properly-structured `SKILL.md` (trigger-rich YAML description, "When to use", workflow, examples, anti-patterns), drops it in the right location (library `skills/`, project `./.claude/skills/`, or global `~/.claude/skills/`), updates the README skills table when extending this library, and runs a review checklist focused on the failure mode that matters most — under-triggering descriptions. Triggers on "create/write/add a skill", "/write-a-skill", or a pasted SKILL.md URL with "one like this". |
 
-Run `claude-skills list` to see this list with install status, or browse [`skills/`](./skills) directly.
+Run `skills list` to see this list with install status, or browse [`skills/`](./skills) directly.
 
 ## How Claude Code finds these skills
 
@@ -116,13 +116,13 @@ This CLI just copies skill folders to one of those locations. Nothing magic.
 
 | Command | What it does |
 |---|---|
-| `claude-skills list` | List skills available in the library, marking which are installed |
-| `claude-skills installed` | List skills currently installed |
-| `claude-skills install` | Interactive multi-select picker |
-| `claude-skills install <name>...` | Install one or more skills by name |
-| `claude-skills install --all` | Install every skill in the library |
-| `claude-skills remove <name>...` | Remove installed skill(s) |
-| `claude-skills remove --all` | Remove every installed skill |
+| `skills list` | List skills available in the library, marking which are installed |
+| `skills installed` | List skills currently installed |
+| `skills install` | Interactive multi-select picker |
+| `skills install <name>...` | Install one or more skills by name |
+| `skills install --all` | Install every skill in the library |
+| `skills remove <name>...` | Remove installed skill(s) |
+| `skills remove --all` | Remove every installed skill |
 
 ## Flags
 
