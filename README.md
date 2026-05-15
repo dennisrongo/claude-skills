@@ -182,8 +182,24 @@ Edit the file at `~/.claude/skills/<name>/SKILL.md` directly while you're iterat
 **Tune in the repo, reinstall:**
 Edit `skills/<name>/SKILL.md` in your clone, then run `npx github:dennisrongo/claude-skills install <name> --force` to push it to your install location.
 
-**Pull upstream updates:**
-When a skill in this library has been updated on `main` and you want the new version locally, force-reinstall with a cache-bust:
+**Pull upstream updates (npm-global install):**
+If you installed the CLI globally (`npm install -g @dennisrongo/skills`), updating is a two-step process — bumping the CLI does *not* automatically refresh the skills already copied into `~/.claude/skills/`.
+
+```bash
+# 1. Update the CLI to the latest published version
+npm install -g @dennisrongo/skills@latest
+
+# 2. Re-copy the bundled skills over your existing installs
+skills install --all --force
+```
+
+- Step 1 replaces the `skills` binary and the bundled skill files inside the global node_modules.
+- Step 2 overwrites everything in `~/.claude/skills/` with the new bundled versions. Without `--force` the CLI skips skills that already exist.
+- Add `-p` / `--project` to step 2 if the skills live in `./.claude/skills` instead.
+- To update just one skill instead of all: `skills install <name> --force`.
+
+**Pull upstream updates (npx-from-GitHub):**
+If you're using `npx github:dennisrongo/claude-skills` without a global install, force-reinstall with a cache-bust:
 
 ```bash
 # Single skill
