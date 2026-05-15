@@ -1,18 +1,20 @@
 {
-  "name": "claude-skills",
+  "name": "@dennisrongo/skills",
   "version": "0.1.0",
   "description": "A curated, fine-tunable library of Claude Code skills. Install globally or per-project via npx.",
   "bin": {
-    "claude-skills": "./bin/claude-skills.js"
+    "claude-skills": "bin/claude-skills.js"
   },
   "files": [
     "bin/",
     "lib/",
     "skills/",
+    "LICENSE",
     "README.md"
   ],
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test \"test/**/*.test.js\"",
+    "prepublishOnly": "npm test"
   },
   "keywords": [
     "claude",
@@ -22,10 +24,10 @@
     "ai",
     "cli"
   ],
-  "author": "",
+  "author": "Dennis Rongo",
   "license": "MIT",
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "@inquirer/prompts": "^7.0.0",
@@ -38,5 +40,9 @@
   "homepage": "https://github.com/dennisrongo/claude-skills#readme",
   "bugs": {
     "url": "https://github.com/dennisrongo/claude-skills/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }
