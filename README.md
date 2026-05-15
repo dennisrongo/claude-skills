@@ -6,26 +6,42 @@ A curated, fine-tunable library of [Claude Code](https://docs.claude.com/en/docs
 
 ## Quick start
 
-Run directly from GitHub — no clone, no npm publish needed:
+### From npm (recommended)
+
+The package is published as [`@dennisrongo/skills`](https://www.npmjs.com/package/@dennisrongo/skills). The installed binary is `claude-skills`.
 
 ```bash
 # See what's in the library
-npx github:dennisrongo/claude-skills list
+npx @dennisrongo/skills list
 
 # Interactive picker, global (~/.claude/skills)
-npx github:dennisrongo/claude-skills install
+npx @dennisrongo/skills install
 
 # Interactive picker, project-scoped (./.claude/skills)
-npx github:dennisrongo/claude-skills install -p
+npx @dennisrongo/skills install -p
 
 # Install specific skills globally (~/.claude/skills)
-npx github:dennisrongo/claude-skills install conventional-commits pr-review
+npx @dennisrongo/skills install conventional-commits pr-review
 
 # Install specific skills into the current project
-npx github:dennisrongo/claude-skills install conventional-commits pr-review -p
+npx @dennisrongo/skills install conventional-commits pr-review -p
 
 # Install everything into the current project (./.claude/skills)
-npx github:dennisrongo/claude-skills install --all --project
+npx @dennisrongo/skills install --all --project
+```
+
+Or install once and call it directly:
+
+```bash
+npm install -g @dennisrongo/skills
+claude-skills list
+```
+
+### From GitHub (no npm publish needed)
+
+```bash
+npx github:dennisrongo/claude-skills list
+npx github:dennisrongo/claude-skills install
 ```
 
 > The interactive picker, `--all`, and named-skill installs all accept `-p` / `--project` to target `./.claude/skills` instead of the global `~/.claude/skills`. Run it from the project root.
@@ -77,6 +93,7 @@ node bin/claude-skills.js list
 | [`dotnet-onion-api`](./skills/dotnet-onion-api/SKILL.md) | Scaffold a new .NET solution (Web API + Worker microservices) using ONION architecture and EF Core, codifying battle-tested layered patterns and explicitly removing common legacy pitfalls (sproc-centric repos with reflection, EF6 on netstandard2.1, polling console workers, mutable base-service state, missing `CancellationToken`). Three modes — full solution scaffold, add-a-feature slice, add-a-worker microservice. Resolves TFM and NuGet versions at scaffold time (not hard-coded). |
 | [`grill-with-docs`](./skills/grill-with-docs/SKILL.md) | Interview-driven design review. Stress-tests a plan, RFC, or feature idea against the project's existing domain model and documented decisions — one question at a time with `AskUserQuestion`, sharpening fuzzy terminology and surfacing contradictions with the codebase. Updates `CONTEXT.md` (glossary) inline as terms resolve and writes ADRs to `docs/adr/` only when the decision is hard to reverse, non-obvious, and had real trade-offs. Writes no production code — composes with [`plan-and-build`](./skills/plan-and-build/SKILL.md) for the implementation handoff. Triggers on "grill me", "stress-test this plan", "challenge this design", "/grill-with-docs", or a pasted RFC. |
 | [`handoff`](./skills/handoff/SKILL.md) | Capture a session hand-off before context runs out — writes a dated `.claude/handoffs/*.md` (objective, progress, decisions, files, open issues, ready-to-paste next-session prompt) plus a lightweight memory pointer so a fresh Claude session can resume cleanly. |
+| [`improve-codebase-architecture`](./skills/improve-codebase-architecture/SKILL.md) | Surface architectural friction and propose **deepening opportunities** — refactors that collapse clusters of shallow modules into one deep module with a real seam. Walks the codebase with an Explore sub-agent, applies the **deletion test** to suspected pass-throughs, presents numbered candidates (files / problem / solution / benefits) using `CONTEXT.md` for the domain and a strict architecture glossary (module / interface / seam / depth / leverage / locality) for the structure, then drops into a grilling loop with optional parallel sub-agent interface design ("Design It Twice"). Updates `CONTEXT.md` inline as new concepts get named and offers an ADR only when a rejection is load-bearing. Composes with [`grill-with-docs`](./skills/grill-with-docs/SKILL.md) for glossary + ADR discipline and [`plan-and-build`](./skills/plan-and-build/SKILL.md) for the implementation handoff. Writes no production code. Triggers on "improve architecture", "architecture review", "find refactoring / deepening opportunities", "find shallow modules", "make this more testable", or `/improve-codebase-architecture`. |
 | [`nextjs-app-router`](./skills/nextjs-app-router/SKILL.md) | Scaffold a new Next.js (App Router) frontend with TypeScript, Redux Toolkit + RTK Query, Tailwind + shadcn/ui (Radix), and React Hook Form + Zod. Codifies route-group auth boundaries, a single injected RTK Query API, schema-driven forms with introspected defaults, server-side `middleware.ts`, and Vitest + Playwright + CI defaults — while forbidding common pitfalls (`'use client'` on root pages, `router.push` in `useEffect`, `serializableCheck: false`, `@ts-ignore`, mixed `moment`/`date-fns`, `styled-components` alongside Tailwind, case-sensitive folder dupes, `dangerouslySetInnerHTML` without sanitization, tokens outside `httpOnly` cookies). Three modes — full project scaffold, add-a-feature slice, add-an-API-slice. Resolves package versions at scaffold time (not hard-coded). |
 | [`plan-and-build`](./skills/plan-and-build/SKILL.md) | Plan-first feature builder. Grills the user about the feature (à la `grill-with-docs`) until the design is unambiguous, detects the project's stack and conventions, presents a plan, and gates on `ExitPlanMode` approval before writing any code. Builds TDD-first with NUnit when a .NET API changes — appending to the matching test class if one already exists rather than forking a parallel one — reuses existing patterns, keeps comments minimal, and generates EF Core / migration files **without ever** running `dotnet ef database update` or any DDL/SQL against the user's database. Triggers on "build/add/implement a feature", "/plan-and-build", or a pasted feature spec. |
 | [`pr-review`](./skills/pr-review/SKILL.md) | Conduct a structured PR / diff review prioritized correctness → design → tests → security → performance → readability, with categorized feedback (`blocking` / `suggestion` / `question` / `nit` / `praise`). |
@@ -178,24 +195,36 @@ npx --yes github:dennisrongo/claude-skills install --all --force
 - `--force` overwrites the existing install (without it, the CLI skips skills that already exist).
 - Add `-p` / `--project` if the skill lives in `./.claude/skills` instead of the global `~/.claude/skills`.
 
-## Publishing to npm (optional)
+## Releasing
 
-If you eventually want the shorter `npx claude-skills` form (no `github:` prefix), publish to npm:
+Releases are published to npm automatically by [`.github/workflows/publish.yml`](./.github/workflows/publish.yml) when a GitHub Release is published. The package ships with [npm provenance](https://docs.npmjs.com/generating-provenance-statements) — npm verifies it was built by this repo's Actions workflow.
+
+One-time setup:
+
+1. Create an automation-scoped `NPM_TOKEN` at https://www.npmjs.com/settings/<user>/tokens (use a "Granular Access Token" or "Automation" token).
+2. Add it to the repo as a secret: **Settings → Secrets and variables → Actions → New repository secret**, name `NPM_TOKEN`.
+3. If you ever rename the package, confirm the new name is free: `npm view <name>`. The current scoped name `@dennisrongo/skills` lives under your npm user/org — `npm publish --access public` will create it on first publish.
+
+Cutting a release:
 
 ```bash
-npm login
-npm publish --access public
+# Bump version (creates a commit + tag)
+npm version patch   # or minor / major
+
+# Push the commit and tag
+git push --follow-tags
+
+# Create a GitHub Release pointing at the new tag — the workflow takes over from there.
+gh release create "v$(node -p "require('./package.json').version")" --generate-notes
 ```
 
-After publishing, both forms work:
+The workflow checks `package.json` version matches the release tag, runs tests, then publishes with `--provenance`. After publishing both invocation forms work:
 
 ```bash
-npx claude-skills install                       # via npm
+npx @dennisrongo/skills install                 # via npm
 npx github:dennisrongo/claude-skills install    # still works, latest main
 ```
 
-The package name `claude-skills` may already be taken on npm — check with `npm view claude-skills` first. If it is, rename in `package.json` (e.g., `@dennisrongo/claude-skills`) before publishing.
-
 ## License
 
-MIT
+[MIT](./LICENSE) © Dennis Rongo

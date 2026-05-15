@@ -1,5 +1,13 @@
-test/
+# package.json `files` is the source of truth for what ships.
+# This .npmignore is a defensive second layer in case anything ever leaks in.
 .github/
+test/
 *.test.js
 .vscode/
 .idea/
+.claude/
+node_modules/
+coverage/
+*.tgz
+.env
+.env.*

@@ -6,3 +6,4 @@ yarn-error.log*
 *.tgz
 .env
 .env.local
+.claude/
