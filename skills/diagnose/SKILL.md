@@ -1,6 +1,6 @@
 ---
 name: diagnose
-description: Disciplined diagnosis loop for hard bugs and performance regressions. Reproduce → minimise → hypothesise → instrument → fix → regression-test. Use this skill whenever the user says "diagnose this", "debug this", "/diagnose", reports a bug, says something is broken / throwing / failing / flaky / hanging / leaking, or describes a performance regression — even if they don't explicitly ask for a "diagnose skill".
+description: Disciplined diagnosis loop for hard bugs and performance regressions. Reproduce → minimise → hypothesise → instrument → fix → regression-test. On non-trivial cases, Phase 3 spawns parallel `Explore` sub-agents — each defending a distinct hypothesis with falsifiable predictions and `file:line` evidence — then a cross-examination round drops the ones whose defender couldn't find support, breaking the single-chain anchoring trap. Trivial bugs skip the council. Use this skill whenever the user says "diagnose this", "debug this", "/diagnose", reports a bug, says something is broken / throwing / failing / flaky / hanging / leaking, or describes a performance regression — even if they don't explicitly ask for a "diagnose skill".
 ---
 
 # Diagnose
@@ -82,7 +82,30 @@ Each hypothesis must be **falsifiable**: state the prediction it makes.
 
 If you cannot state the prediction, the hypothesis is a vibe — discard or sharpen it.
 
+### Decision gate: inline vs. hypothesis council
+
+- **Inline (skip the council)** when the cause is obvious from one read: a typo in the diff that introduced the bug, a one-file change with a clear root cause, a trivial null/undefined at an obvious site. Form 1–2 hypotheses directly.
+- **Run the council** when there are multiple plausible causes, the bug spans modules, the regression appeared "somehow" between releases, or your first three hypotheses all feel equally plausible. Anchoring risk is highest exactly here.
+
+### Hypothesis council (parallel + adversarial)
+
+1. **Seed.** Jot 3–5 candidate hypotheses as one-liners. These are *seeds*, not analyses.
+2. **Spawn defenders in parallel.** Send a **single message** with N `Agent` calls (one per seed) using `subagent_type=Explore`. Each defender gets:
+   - The repro details and observed failure mode (verbatim).
+   - **One** hypothesis to defend.
+   - Instructions: "Build the strongest case for this hypothesis against the actual codebase. State the falsifiable prediction in the format above. Cite `file:line` for every piece of supporting evidence. If you cannot find supporting evidence in the code, say so explicitly — do not invent. Report in ≤300 words."
+3. **Cross-examine.** When all defenders return, read their cases side by side. For each hypothesis write:
+   - 2–3 falsifying checks the next phase will run (concrete, runnable).
+   - Whether the defender found real evidence or hand-waved.
+4. **Rank with the survivors.** Drop hypotheses whose defender couldn't find supporting evidence. Demote ones whose prediction is weak or untestable. Promote ones with clean `file:line` evidence + sharp predictions.
+
+The point isn't "vote by sub-agent." It's that forcing each angle to be developed *independently* against the real code prevents the chain-of-thought from anchoring on the first plausible idea.
+
+### Then: show the ranked list to the user
+
 **Show the ranked list to the user before testing.** They often have domain knowledge that re-ranks instantly ("we just deployed a change to #3"), or know hypotheses they've already ruled out. Cheap checkpoint, big time saver. Don't block on it — proceed with your ranking if the user is AFK.
+
+Include, per hypothesis: the falsifiable prediction, 1–2 lines of evidence with `file:line`, and the falsifying check Phase 4 will run.
 
 ## Phase 4 — Instrument
 
@@ -96,9 +119,13 @@ Tool preference:
 
 **Tag every debug log** with a unique prefix, e.g. `[DEBUG-a4f2]`. Cleanup at the end becomes a single grep. Untagged logs survive; tagged logs die.
 
+**Library-API bugs — check current docs before guessing.** If the hypothesis points at a third-party library's behaviour (a framework method, an ORM call, an SDK), look up the library's *current* docs before instrumenting around assumed behaviour. Use `context7` (or any docs-MCP server available in the environment): `context7__resolve-library-id` → `context7__query-docs` for the specific symbol. Training-data API knowledge can be a version behind; the bug may be a known issue or already-fixed-upstream. Skip for refactoring own code, general programming concepts, or library behaviour you've already confirmed in this session.
+
 **Perf branch.** For performance regressions, logs are usually wrong. Instead: establish a baseline measurement (timing harness, `performance.now()`, profiler, query plan), then bisect. Measure first, fix second.
 
 ## Phase 5 — Fix + regression test
+
+**Minimal comments.** Default to no comments in the fix or the regression test. Add one only when the *why* is non-obvious — a workaround for a specific upstream bug (with a link), a subtle invariant the code relies on, a domain rule that isn't visible from the names. Never write block headers, never restate *what* the next line does, never leave `// TODO` without an issue link. One short line max — no multi-line comment blocks. Names carry the *what*; comments earn their place only when they carry *why*.
 
 Write the regression test **before the fix** — but only if there is a **correct seam** for it.
 
@@ -130,6 +157,9 @@ Required before declaring done:
 
 - Jumping to a fix before building a feedback loop — you're guessing, not diagnosing.
 - A single hypothesis becomes "the cause" without falsification — anchoring.
+- Running the hypothesis council for a one-line typo bug. Ceremony for its own sake. Inline 1–2 hypotheses is fine when the cause is staring at you.
+- Spawning defender sub-agents serially instead of in parallel — one message, N agents.
+- A defender that returns "could not find supporting evidence" gets ranked anyway. If the code doesn't back the hypothesis, drop it.
 - "Added some logs" without tagging them — they survive into production.
 - Marking the bug fixed because the symptom went away once — without re-running the loop or adding a regression test, you don't know.
 - Treating a flaky test as flaky-by-nature and retrying — flakes are bugs with a low reproduction rate; raise the rate.

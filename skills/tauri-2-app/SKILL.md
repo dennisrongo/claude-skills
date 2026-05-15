@@ -191,6 +191,7 @@ Full templates are in [`references/templates/`](references/templates/). The full
 - **`tauri.conf.json` `windows[].devtools: false`** (or omitted — Tauri defaults to off in release). DevTools should be opened from a build-time feature flag, not the production config.
 - **Reset-state-on-startup pattern** — in `pub fn run()`'s `.setup(|app| { ... })`, clear any in-progress / stuck state from a previous run before showing the window. Crashes leave globals in odd places; treat each startup as recovering from "the app was force-quit".
 - **Show window FIRST in `.setup()`** before any blocking initialization. Heavy work (ML model loading, large config parses) goes on a background thread that emits events back to the frontend.
+- **Minimal comments in generated code (Rust and TS).** Default to no comments. Only add one when the *why* is non-obvious — `// SAFETY:` on an `unsafe` block, a workaround for a specific upstream bug (with a link), a non-trivial invariant the code depends on, a platform quirk that isn't visible from the names. Never write Rust doc-comment blocks (`///`) on internal items; reserve them for genuinely public API surface (`pub` types crossing crate boundaries). Never restate *what* the next line does, never leave `// TODO` without an issue link. One short line max — no multi-line comment blocks. `// SAFETY:` on `unsafe` is the one place verbose justification is *required*; everywhere else, well-named identifiers carry the *what* and comments earn their place only when they carry *why*.
 
 ### Eliminate (anti-patterns)
 

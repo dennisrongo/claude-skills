@@ -213,6 +213,7 @@ Full templates are in [`references/templates/`](references/templates/). Rational
 - **`error.tsx` and `loading.tsx` at every meaningful route segment**.
 - **Runtime env validation** in `src/config/env.ts` using Zod. `AUTH_SECRET`, `DATABASE_URL`, `AUTH_URL` (production), and any OAuth provider keys are required.
 - **Single date library: `date-fns`**. No `moment`.
+- **Minimal comments in generated code.** Default to no comments. Only add one when the *why* is non-obvious — a workaround for a specific upstream issue (with a link), a subtle invariant the code depends on, a domain rule that isn't visible from the names. Never write block headers, never restate *what* the next line does, never leave `// TODO` without an issue link. One short line max — no multi-line comment blocks, no multi-paragraph JSDoc. Well-named identifiers carry the *what*; comments earn their place only when they carry *why*.
 - **`tsconfig.json` strict + `@/*` path alias** — see [`references/templates/tsconfig.md`](references/templates/tsconfig.md).
 - **Vitest + RTL for unit tests, Playwright for E2E**. At least: one reducer test, one schema test, one component test, one E2E auth-then-dashboard flow.
 - **Husky + lint-staged** pre-commit: `prettier --write` + `eslint --fix` on staged files.

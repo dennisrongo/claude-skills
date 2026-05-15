@@ -109,6 +109,7 @@ Use these exact patterns when generating files. Full templates are in `reference
 - **Centralized exception middleware** with env-aware response — see [`references/templates/exception-middleware.cs.md`](references/templates/exception-middleware.cs.md).
 - **Unified validation error response** via `InvalidModelStateResponseFactory`.
 - **JWT auth wiring** in a `RegisterAuth` extension method.
+- **Minimal comments in generated code.** Default to no comments. Only add one when the *why* is non-obvious — a workaround for a specific framework bug (with a link), a subtle invariant the code depends on, a domain rule that isn't visible from the names. Never write XML doc-comment blocks (`/// <summary>...`) on internal members; reserve them for genuinely public API surface that ships to consumers. Never restate *what* the next line does, never leave `// TODO` without an issue link. One short line max — no multi-line comment blocks. Well-named identifiers carry the *what*; comments earn their place only when they carry *why*.
 
 ### Eliminate (anti-patterns)
 

@@ -92,16 +92,17 @@ node bin/claude-skills.js list
 
 | Skill | What it does |
 |---|---|
-| [`code-review`](./skills/code-review/SKILL.md) | Production-readiness review of **uncommitted** working-tree changes (staged + unstaged). Hunts DRY violations, dead code, leaky abstractions, premature abstraction, magic values, missing error handling, debug residue, missing migrations / flags / logs, and other common best-practice gaps — prioritized correctness → DRY/design → tests → security → performance → production-readiness → readability. Auto-detects and runs the project's tests and build (`npm`, `pytest`, `dotnet`, `go`, `cargo`, `Makefile`, monorepo orchestrators) and gates the verdict on them being green. **Never edits code unprompted** — produces a categorized report (`blocking` / `suggestion` / `nit` / `praise`) with `file:line` citations, then asks per-finding before fixing. Distinct from [`pr-review`](./skills/pr-review/SKILL.md), which scopes to committed branch work. Triggers on "code review", "review the diff", "is this production ready", "DRY check", or `/code-review`. |
+| [`code-review`](./skills/code-review/SKILL.md) | Production-readiness review of **uncommitted** working-tree changes (staged + unstaged). Hunts DRY violations, dead code, leaky abstractions, premature abstraction, magic values, missing error handling, debug residue, missing migrations / flags / logs, and other common best-practice gaps — prioritized correctness → DRY/design → tests → security → performance → production-readiness → readability. On non-trivial diffs, convenes a **lens council**: parallel `Explore` sub-agents reviewing through distinct lenses (correctness / design / security / tests / production-readiness), followed by an **adversarial critique round** that challenges each lens's blocking flags against context from the others — false positives demoted, contradictions surfaced for the user, multi-lens findings promoted. Small diffs skip the council. Auto-detects and runs the project's tests and build (`npm`, `pytest`, `dotnet`, `go`, `cargo`, `Makefile`, monorepo orchestrators) and gates the verdict on them being green. **Never edits code unprompted** — produces a categorized report (`blocking` / `suggestion` / `nit` / `praise`) with `file:line` citations, then asks per-finding before fixing. Distinct from [`pr-review`](./skills/pr-review/SKILL.md), which scopes to committed branch work. Triggers on "code review", "review the diff", "is this production ready", "DRY check", or `/code-review`. |
+| [`codebase-explainer`](./skills/codebase-explainer/SKILL.md) | Produce a durable onboarding artifact for a repo — writes `ONBOARDING.md` (or `docs/ONBOARDING.md` if `docs/` exists) with a tight **read this first** minimum, system overview, dependency map (top-level prod deps + how each is actually used in *this* codebase, with key call site), startup flow (entry point → bootstrap → config), auth flow (or an explicit "no auth detected" when there isn't one), and the 5–15 important files — every claim backed by a `file:line` citation. Walks the repo with **parallel Explore sub-agents** to stay context-safe on big projects, refreshes an existing `ONBOARDING.md` in place instead of rewriting from scratch, and is opinionated about what *not* to include (no dev/test/types deps, no 40-file "important files" lists, no fabricated auth flows, no dates that rot). Built for revisiting a project after months away — and for new teammates landing in an unfamiliar repo. Composes with [`improve-codebase-architecture`](./skills/improve-codebase-architecture/SKILL.md) when shallow-module clusters surface and [`handoff`](./skills/handoff/SKILL.md) for session-level state. Triggers on "explain this codebase", "onboard me", "give me a tour", "where do I start", "I haven't looked at this in months", or `/codebase-explainer`. |
 | [`conventional-commits`](./skills/conventional-commits/SKILL.md) | Write git commit messages that follow the [Conventional Commits](https://www.conventionalcommits.org/) spec (`feat`, `fix`, `chore`, `docs`, …), auto-prefixed with the ticket number from the current branch (e.g. `feature/12345-...` → `#12345`) and a project tag (`API` / `CLIENT` / `CONSOLE` / `DB`) when detectable from the diff. Both prefixes are omitted when they don't apply. Triggers on commit-message requests. |
-| [`diagnose`](./skills/diagnose/SKILL.md) | Disciplined diagnosis loop for hard bugs and performance regressions — reproduce → minimise → hypothesise → instrument → fix → regression-test. Forces a fast, deterministic feedback loop before any guessing, generates 3–5 ranked falsifiable hypotheses, uses tagged `[DEBUG-...]` instrumentation that's trivially cleaned up, and ends with a post-mortem on what would have prevented the bug. Triggers on "diagnose this" / "debug this" / bug reports / flaky tests / perf regressions. |
+| [`diagnose`](./skills/diagnose/SKILL.md) | Disciplined diagnosis loop for hard bugs and performance regressions — reproduce → minimise → hypothesise → instrument → fix → regression-test. Forces a fast, deterministic feedback loop before any guessing. On non-trivial cases, Phase 3 convenes a **hypothesis council**: parallel `Explore` sub-agents — one per candidate hypothesis — each defending its case with falsifiable predictions and `file:line` evidence from the actual codebase, followed by a cross-examination round that drops defenders who couldn't find supporting evidence and ranks the survivors. Trivial bugs skip the council and use 1–2 inline hypotheses. Uses tagged `[DEBUG-...]` instrumentation that's trivially cleaned up, and ends with a post-mortem on what would have prevented the bug. Triggers on "diagnose this" / "debug this" / bug reports / flaky tests / perf regressions. |
 | [`dotnet-onion-api`](./skills/dotnet-onion-api/SKILL.md) | Scaffold a new .NET solution (Web API + Worker microservices) using ONION architecture and EF Core, codifying battle-tested layered patterns and explicitly removing common legacy pitfalls (sproc-centric repos with reflection, EF6 on netstandard2.1, polling console workers, mutable base-service state, missing `CancellationToken`). Three modes — full solution scaffold, add-a-feature slice, add-a-worker microservice. Resolves TFM and NuGet versions at scaffold time (not hard-coded). |
 | [`grill-with-docs`](./skills/grill-with-docs/SKILL.md) | Interview-driven design review. Stress-tests a plan, RFC, or feature idea against the project's existing domain model and documented decisions — one question at a time with `AskUserQuestion`, sharpening fuzzy terminology and surfacing contradictions with the codebase. Updates `CONTEXT.md` (glossary) inline as terms resolve and writes ADRs to `docs/adr/` only when the decision is hard to reverse, non-obvious, and had real trade-offs. Writes no production code — composes with [`plan-and-build`](./skills/plan-and-build/SKILL.md) for the implementation handoff. Triggers on "grill me", "stress-test this plan", "challenge this design", "/grill-with-docs", or a pasted RFC. |
 | [`handoff`](./skills/handoff/SKILL.md) | Capture a session hand-off before context runs out — writes a dated `.claude/handoffs/*.md` (objective, progress, decisions, files, open issues, ready-to-paste next-session prompt) plus a lightweight memory pointer so a fresh Claude session can resume cleanly. |
 | [`improve-codebase-architecture`](./skills/improve-codebase-architecture/SKILL.md) | Surface architectural friction and propose **deepening opportunities** — refactors that collapse clusters of shallow modules into one deep module with a real seam. Walks the codebase with an Explore sub-agent, applies the **deletion test** to suspected pass-throughs, presents numbered candidates (files / problem / solution / benefits) using `CONTEXT.md` for the domain and a strict architecture glossary (module / interface / seam / depth / leverage / locality) for the structure, then drops into a grilling loop with optional parallel sub-agent interface design ("Design It Twice"). Updates `CONTEXT.md` inline as new concepts get named and offers an ADR only when a rejection is load-bearing. Composes with [`grill-with-docs`](./skills/grill-with-docs/SKILL.md) for glossary + ADR discipline and [`plan-and-build`](./skills/plan-and-build/SKILL.md) for the implementation handoff. Writes no production code. Triggers on "improve architecture", "architecture review", "find refactoring / deepening opportunities", "find shallow modules", "make this more testable", or `/improve-codebase-architecture`. |
 | [`nextjs-app-router`](./skills/nextjs-app-router/SKILL.md) | Scaffold a new Next.js (App Router) **fullstack** app — TypeScript, **NextAuth (Auth.js v5)**, **Prisma + PostgreSQL**, Route Handlers as the backend, Redux Toolkit + RTK Query, Tailwind + shadcn/ui (Radix), React Hook Form + Zod. **API-driven by deliberate choice**: pages are `'use client'`, all data flows UI → RTK Query → `/api/**` Route Handlers → Prisma. No `fetch()` in server components, no Server Actions, no async `page.tsx`. Confirms the database (Postgres + Prisma) and NextAuth providers with the user before writing files. Forbids the usual pitfalls (custom JWT cookies alongside NextAuth, multiple `createApi`/`PrismaClient` instances, `serializableCheck: false`, `@ts-ignore`, mixed `moment`/`date-fns`, `styled-components` alongside Tailwind, case-sensitive folder dupes, `dangerouslySetInnerHTML` without sanitization, Route Handlers that skip `requireSession()` or trust client-sent user IDs, `prisma db push` in CI). Three modes — full project scaffold, add-a-feature slice (page + form + Route Handler + Zod schema + RTK Query endpoints + Prisma model), add-an-API-slice. Resolves package versions at scaffold time (not hard-coded). |
-| [`plan-and-build`](./skills/plan-and-build/SKILL.md) | Plan-first feature builder. Grills the user about the feature (à la `grill-with-docs`) until the design is unambiguous, detects the project's stack and conventions, presents a plan, and gates on `ExitPlanMode` approval before writing any code. Builds TDD-first with NUnit when a .NET API changes — appending to the matching test class if one already exists rather than forking a parallel one — reuses existing patterns, keeps comments minimal, and generates EF Core / migration files **without ever** running `dotnet ef database update` or any DDL/SQL against the user's database. Triggers on "build/add/implement a feature", "/plan-and-build", or a pasted feature spec. |
-| [`pr-review`](./skills/pr-review/SKILL.md) | Conduct a structured PR / diff review prioritized correctness → design → tests → security → performance → readability, with categorized feedback (`blocking` / `suggestion` / `question` / `nit` / `praise`). |
+| [`plan-and-build`](./skills/plan-and-build/SKILL.md) | Plan-first feature builder. Grills the user about the feature (à la `grill-with-docs`) until the design is unambiguous, detects the project's stack and conventions, presents a plan, and gates on `ExitPlanMode` approval before writing any code. When Phase 3 hits a genuine design fork (service-layer vs. CQRS, new table vs. nullable columns, sync vs. background job, etc.) and Phase 2 didn't settle it, runs **Design It Twice**: two parallel sub-agents each draft the BEST plan for one side of the named axis, then an inline debate names three wins for each and recommends one — the user sees a single recommended plan with a one-line "considered alternative" note so they can redirect with one sentence. Skipped when an existing pattern in the repo already dictates the approach. Builds TDD-first with NUnit when a .NET API changes — appending to the matching test class if one already exists rather than forking a parallel one — reuses existing patterns, keeps comments minimal, and generates EF Core / migration files **without ever** running `dotnet ef database update` or any DDL/SQL against the user's database. Triggers on "build/add/implement a feature", "/plan-and-build", or a pasted feature spec. |
+| [`pr-review`](./skills/pr-review/SKILL.md) | Structured review of a local branch, **grouped per `#NNN` task** referenced in commit messages, prioritized correctness → design → tests → security → performance → readability, with categorized feedback (`blocking` / `suggestion` / `question` / `nit` / `praise`). On non-trivial tasks, convenes a **per-task lens council**: parallel `Explore` sub-agents through distinct lenses (correctness / design / security / tests) on that task's diff only, followed by an **adversarial critique round** that demotes false-positive blockers when another lens defuses them, surfaces contradictions as `question` items for the user, and promotes findings raised by multiple lenses independently. Small tasks skip the council. The council never crosses task boundaries — each `#NNN` gets its own verdict. Triggers on "review my PR", "review the diff", "review my branch", or `/pr-review`. |
 | [`tauri-2-app`](./skills/tauri-2-app/SKILL.md) | Scaffold a new Tauri 2 desktop app (Rust backend + TypeScript/React frontend) using a thin-frontend / rich-Rust-backend architecture with modular `commands/`, `state/`, `storage/`, `platform/` traits, `error/` macros, single-instance + updater plugins wired correctly, capability JSON per window, encrypted secrets at rest, `spawn_blocking` for sync work, and typed frontend command hooks — while forbidding common pitfalls (committed `.backup`/`.orig`/`.temp` files, plaintext API keys in `settings.json`, tokens in `localStorage`, `cfg!(target_os)` in command bodies instead of trait-based platform code, hand-rolled date math instead of `chrono`, raw `std::fs` bypassing capability checks, blocking I/O inside async commands, missing `windows_subsystem = "windows"` in `main.rs`, `devtools: true` in release, hardcoded bundle identifiers / updater pubkeys / CDN URLs). Three modes — full project scaffold, add-a-command end-to-end, add-a-Rust-module slice. Resolves Cargo + npm versions at scaffold time (not hard-coded). |
 | [`write-a-skill`](./skills/write-a-skill/SKILL.md) | Author a new Claude Code skill — interview-driven scaffolding that produces a properly-structured `SKILL.md` (trigger-rich YAML description, "When to use", workflow, examples, anti-patterns), drops it in the right location (library `skills/`, project `./.claude/skills/`, or global `~/.claude/skills/`), updates the README skills table when extending this library, and runs a review checklist focused on the failure mode that matters most — under-triggering descriptions. Triggers on "create/write/add a skill", "/write-a-skill", or a pasted SKILL.md URL with "one like this". |
 
@@ -228,33 +229,71 @@ npx --yes github:dennisrongo/claude-skills install --all --force
 
 ## Releasing
 
-Releases are published to npm automatically by [`.github/workflows/publish.yml`](./.github/workflows/publish.yml) when a GitHub Release is published. The package ships with [npm provenance](https://docs.npmjs.com/generating-provenance-statements) — npm verifies it was built by this repo's Actions workflow.
+Releases are published to npm automatically by [`.github/workflows/publish.yml`](./.github/workflows/publish.yml) **when a GitHub Release is published**. The package ships with [npm provenance](https://docs.npmjs.com/generating-provenance-statements) — npm verifies it was built by this repo's Actions workflow.
 
-One-time setup:
+### Cutting a release — step by step
+
+Run these from a clean working tree on `main`, in this order.
+
+1. **Commit and push your work first.** The release is cut from the tip of `main`; nothing uncommitted gets shipped.
+   ```bash
+   git status            # must be clean
+   git push origin main
+   ```
+2. **Pick the bump.** Follow semver (pre-1.0: still treat new features as `minor`):
+   - `patch` — bug fix in an existing skill, doc tweak, CLI fix.
+   - `minor` — new skill, materially new behavior in an existing skill, new CLI flag.
+   - `major` — removal or rename of a skill / CLI command, breaking change to install layout.
+3. **Bump the version + create the tag.**
+   ```bash
+   npm version <patch|minor|major>
+   # creates a "vX.Y.Z" commit and a matching git tag
+   ```
+4. **Push the bump commit and the tag together.**
+   ```bash
+   git push --follow-tags
+   ```
+5. **Create the GitHub Release** — this is the step that **triggers the npm publish workflow**.
+   ```bash
+   gh release create "v$(node -p "require('./package.json').version")" --generate-notes
+   ```
+6. **Watch the workflow run.**
+   ```bash
+   gh run watch           # interactive, exits when done
+   # or
+   gh run list --workflow=publish.yml --limit 1
+   ```
+7. **Verify the publish.** Once the run is green:
+   ```bash
+   npm view @dennisrongo/skills version    # should match the new tag
+   npx @dennisrongo/skills@latest list     # smoke test
+   ```
+
+If the workflow fails, fix forward — don't reuse a published version number. npm rejects republishing the same version, so the next attempt needs a fresh bump.
+
+### What the workflow does
+
+`.github/workflows/publish.yml` runs on `release: published` and:
+
+1. Checks out the tag.
+2. Asserts `package.json` version matches the release tag (fails fast on mismatch).
+3. Runs `npm test`.
+4. Runs `npm publish --provenance --access public`.
+
+Both invocation forms work after publish:
+
+```bash
+npx @dennisrongo/skills install                 # via npm (recommended)
+npx github:dennisrongo/claude-skills install    # latest commit on main
+```
+
+### One-time setup (already done for this repo)
+
+Keep this for reference if the package ever moves or gets forked:
 
 1. Create an automation-scoped `NPM_TOKEN` at https://www.npmjs.com/settings/<user>/tokens (use a "Granular Access Token" or "Automation" token).
 2. Add it to the repo as a secret: **Settings → Secrets and variables → Actions → New repository secret**, name `NPM_TOKEN`.
 3. If you ever rename the package, confirm the new name is free: `npm view <name>`. The current scoped name `@dennisrongo/skills` lives under your npm user/org — `npm publish --access public` will create it on first publish.
-
-Cutting a release:
-
-```bash
-# Bump version (creates a commit + tag)
-npm version patch   # or minor / major
-
-# Push the commit and tag
-git push --follow-tags
-
-# Create a GitHub Release pointing at the new tag — the workflow takes over from there.
-gh release create "v$(node -p "require('./package.json').version")" --generate-notes
-```
-
-The workflow checks `package.json` version matches the release tag, runs tests, then publishes with `--provenance`. After publishing both invocation forms work:
-
-```bash
-npx @dennisrongo/skills install                 # via npm
-npx github:dennisrongo/claude-skills install    # still works, latest main
-```
 
 ## License
 
