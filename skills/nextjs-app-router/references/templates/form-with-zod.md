@@ -122,10 +122,14 @@ export function FormInputField<TForm extends FieldValues>({
 
 ## A real form — `src/app/(public)/auth/login/_components/LoginForm.tsx`
 
+The login form uses NextAuth's `signIn` directly — there is no `useLoginMutation` because auth is not a domain in the RTK Query slice.
+
 ```tsx
 'use client';
 
+import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -133,22 +137,20 @@ import { z } from 'zod';
 import { Form } from '@/components/ui/form';
 import { Button } from '@/components/ui/button';
 import { FormInputField } from '@/components/forms/FormInputField';
-import { useLoginMutation } from '@/redux/api/authApi';
-import { useToast } from '@/components/ui/use-toast';
+import { FormPasswordField } from '@/components/forms/FormPasswordField';
 import { getDefaultValuesFromSchema, unwrapZodEffects } from '@/lib/zod-utils';
 
 const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8).max(128),
+  password: z.string().min(1, 'Required'),
 });
 type LoginValues = z.infer<typeof loginSchema>;
 
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnTo = searchParams.get('returnTo') ?? '/dashboard';
-  const { toast } = useToast();
-  const [login, { isLoading }] = useLoginMutation();
+  const returnTo = searchParams.get('returnTo') ?? '/app/dashboard';
+  const [error, setError] = useState<string | null>(null);
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -156,27 +158,33 @@ export function LoginForm() {
   });
 
   const onSubmit = async (values: LoginValues) => {
-    try {
-      await login(values).unwrap();
-      router.replace(returnTo);
-    } catch (err) {
-      toast({ title: 'Sign in failed', description: String((err as { data?: { message?: string } }).data?.message ?? 'Try again.'), variant: 'destructive' });
+    setError(null);
+    const res = await signIn('credentials', { ...values, redirect: false });
+    if (res?.error) {
+      // Don't reveal which field was wrong — security best practice.
+      setError('Invalid email or password.');
+      return;
     }
+    router.replace(returnTo);
+    router.refresh();
   };
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormInputField form={form} schema={loginSchema} fieldName="email" label="Email" type="email" />
-        <FormInputField form={form} schema={loginSchema} fieldName="password" label="Password" type="password" />
-        <Button type="submit" disabled={isLoading} className="w-full">
-          {isLoading ? 'Signing in…' : 'Sign in'}
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <FormInputField form={form} schema={loginSchema} fieldName="email" label="Email" type="email" autoComplete="email" />
+        <FormPasswordField form={form} schema={loginSchema} fieldName="password" label="Password" autoComplete="current-password" />
+        <Button type="submit" disabled={form.formState.isSubmitting} className="w-full">
+          {form.formState.isSubmitting ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>
     </Form>
   );
 }
 ```
+
+**Why no `useLoginMutation`:** auth flows go through NextAuth (`signIn` / `signOut`), not through RTK Query. RTK Query is for domain data. Keeping these separate avoids the temptation to re-implement session state inside Redux.
 
 ## `UnsavedChangesWarning` integration
 

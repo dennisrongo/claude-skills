@@ -1,34 +1,151 @@
 # Good Patterns to Keep
 
-These are the patterns the scaffolder must emit by default. Each one is here because it solves a recurring problem in real-world Next.js + Redux + Tailwind projects.
+These are the patterns the scaffolder must emit by default. Each one is here because it solves a recurring problem in real-world Next.js + NextAuth + Prisma + Redux Toolkit projects.
 
 ## 1. Route groups for auth and role boundaries
 
-`app/(public)/`, `app/(app)/`, `app/(admin)/` carve the route tree by who is allowed in. Each group has its own `layout.tsx`, so the chrome (or lack of it) for unauthenticated pages doesn't bleed into authenticated pages. Groups don't appear in URLs — they're purely an organizational tool.
+`app/(public)/`, `app/(app)/`, `app/(admin)/` carve the route tree by who is allowed in. Each group has its own `layout.tsx`. The `middleware.ts` `config.matcher` mirrors the group structure and gates on the server.
 
-**Why it works:** auth boundaries become a property of the file system, not a runtime check sprinkled into every page. The `middleware.ts` `config.matcher` mirrors the group structure and gates on the server.
+**Why it works:** auth boundaries become a property of the file system, not a runtime check sprinkled into every page.
 
-## 2. Server-by-default with `'use client'` islands
+## 2. SPA-style pages, server root layout only
 
-`app/layout.tsx`, `app/page.tsx`, every group `layout.tsx`, and every feature `page.tsx` is a server component. The interactive parts — forms, table state, sidebars with toggles — are extracted into `_components/Something.tsx` files marked `'use client'` and imported from the server page.
+`src/app/layout.tsx` is a server component that renders `<html><body><Providers>{children}</Providers></body></html>`. **Every other `page.tsx` is `'use client'`** and uses RTK Query hooks for data. Per-route metadata lives at the layout level (server) — pages can't export `metadata` because they're client. This is the deliberate "API-driven, not SSR" choice.
 
-**Why it works:** SSR for free, streaming, smaller client JS, `metadata` exports work, server-only data sources (cookies, DB calls) are reachable from the page.
+**Why it works:** one mental model for data flow (UI → RTK Query → /api → DB), trivial mocking in tests, no "server or client?" cargo culting, no second mutation path via Server Actions.
 
-## 3. Server `redirect()` and middleware-driven navigation
+## 3. NextAuth (Auth.js v5) as the single auth source
 
-Top-level redirects (e.g. `/` → `/dashboard`) are server calls inside a server `page.tsx`. Auth-conditional redirects live in `middleware.ts`. The client `useRouter().push()` is reserved for in-app navigation triggered by user actions (button clicks, form submissions).
+```ts
+// src/auth.ts
+import NextAuth from 'next-auth';
+import { PrismaAdapter } from '@auth/prisma-adapter';
+import { db } from '@/lib/db';
+import authConfig from './auth.config';
 
-## 4. One RTK Query base, many injected slices
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
+  adapter: PrismaAdapter(db),
+  session: { strategy: 'jwt' }, // required when Credentials provider is present
+});
+```
+
+```ts
+// src/auth.config.ts — EDGE-SAFE (no DB imports)
+import type { NextAuthConfig } from 'next-auth';
+import Credentials from 'next-auth/providers/credentials';
+
+export default {
+  providers: [Credentials({ /* authorize: dynamically imported in auth.ts */ })],
+  pages: { signIn: '/auth/login' },
+  callbacks: {
+    async jwt({ token, user }) { if (user) token.id = user.id; return token; },
+    async session({ session, token }) { if (token?.id) session.user.id = token.id as string; return session; },
+  },
+} satisfies NextAuthConfig;
+```
+
+```ts
+// middleware.ts
+import NextAuth from 'next-auth';
+import authConfig from '@/auth.config';
+export const { auth: middleware } = NextAuth(authConfig);
+export const config = { matcher: ['/((?!api/auth|_next/static|_next/image|favicon.ico).*)'] };
+```
+
+**Why split into two files:** middleware runs on the Edge runtime, which can't import the Prisma adapter. `auth.config.ts` is Edge-safe; `auth.ts` extends it with the adapter and is only imported from Node code (Route Handlers, server components).
+
+## 4. Route Handlers as the backend
+
+```ts
+// src/app/api/customers/route.ts
+import { NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { requireSession } from '@/lib/api-auth';
+import { customerSchema } from '@/app/(app)/customers/schema';
+
+export async function GET() {
+  const session = await requireSession();
+  const customers = await db.customer.findMany({ where: { userId: session.user.id } });
+  return NextResponse.json(customers);
+}
+
+export async function POST(req: Request) {
+  const session = await requireSession();
+  const parsed = customerSchema.safeParse(await req.json());
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  const created = await db.customer.create({ data: { ...parsed.data, userId: session.user.id } });
+  return NextResponse.json(created, { status: 201 });
+}
+```
+
+**Why it works:** every backend operation has one home, one auth check, one Zod validation pass against the same schema the form uses, one Prisma call. Ownership is enforced via `userId: session.user.id`.
+
+## 5. `requireSession()` helper for handlers
+
+```ts
+// src/lib/api-auth.ts
+import { auth } from '@/auth';
+
+export async function requireSession() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    throw new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+  return session as typeof session & { user: { id: string } };
+}
+```
+
+Handlers `await requireSession()`; on failure, the thrown `Response` bubbles up as a 401 (Next handles thrown Responses in handlers cleanly in v14+; if not, wrap in try/catch and return). Saves five lines in every handler and guarantees the check exists.
+
+## 6. Prisma singleton
+
+```ts
+// src/lib/db.ts
+import { PrismaClient } from '@prisma/client';
+
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+
+export const db = globalForPrisma.prisma ?? new PrismaClient();
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db;
+```
+
+**Why it works:** dev hot-reload creates new modules but reuses the global. Without this, you exhaust your Postgres connection pool in five minutes of editing.
+
+## 7. One RTK Query base, many injected slices
 
 ```ts
 // redux/api/api.ts
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { signOut } from 'next-auth/react';
+import { TAG_TYPES } from './tags';
+
+const rawBaseQuery = fetchBaseQuery({
+  baseUrl: '/api',
+  credentials: 'include', // ride the NextAuth session cookie (same-origin)
+});
+
+export const baseQueryWithAuth: BaseQueryFn<...> = async (args, api, extra) => {
+  const result = await rawBaseQuery(args, api, extra);
+  if (result.error?.status === 401) {
+    void signOut({ callbackUrl: '/auth/login', redirect: true });
+  }
+  return result;
+};
+
 export const api = createApi({
   reducerPath: 'api',
-  baseQuery: authAwareBaseQuery,
+  baseQuery: baseQueryWithAuth,
   tagTypes: TAG_TYPES,
   endpoints: () => ({}),
 });
+```
 
+```ts
 // redux/api/customersApi.ts
 export const customersApi = api.injectEndpoints({
   endpoints: (build) => ({
@@ -44,37 +161,39 @@ export const customersApi = api.injectEndpoints({
 });
 ```
 
-**Why it works:** one cache, one middleware, one set of tag types. Cross-domain invalidation just works (a mutation in `invoicesApi` can invalidate `Customers` tags). The base file stays small; domain logic lives next to the domain.
+**Why it works:** one cache, one middleware, one set of tag types. Cross-domain invalidation just works. `baseUrl: '/api'` keeps requests same-origin so the NextAuth session cookie rides along.
 
-## 5. Auth-aware `baseQuery` with clean 401 handling
+## 8. SessionProvider + Redux Provider co-located
 
-`baseQuery` injects the session into requests (via cookies for `httpOnly` flows, or via a `prepareHeaders` callback that reads from state for bearer flows). On a 401, it dispatches a typed logout action that the root reducer uses to reset state, then signals the router (not `window.location`) to navigate to `/auth/login`.
+```tsx
+// src/redux/providers.tsx
+'use client';
+import { SessionProvider } from 'next-auth/react';
+import { Provider } from 'react-redux';
+import { AppProgressBar as ProgressBar } from 'next-nprogress-bar';
+import { Toaster } from '@/components/ui/toaster';
+import { store } from './store';
 
-**Why it works:** no hard reloads, no race conditions when multiple in-flight requests 401, and the redirect target stays consistent with whatever `middleware.ts` would have done.
-
-## 6. State-reset on logout via wrapped root reducer
-
-```ts
-const combinedReducer = combineReducers({ ... });
-
-export const store = configureStore({
-  reducer: (state, action) => {
-    if (authApi.endpoints.logout.matchFulfilled(action)) {
-      return combinedReducer(undefined, action);
-    }
-    return combinedReducer(state, action);
-  },
-  // ...
-});
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <SessionProvider>
+      <Provider store={store}>
+        {children}
+        <Toaster />
+        <ProgressBar height="3px" color="hsl(var(--primary))" shallowRouting options={{ showSpinner: false }} />
+      </Provider>
+    </SessionProvider>
+  );
+}
 ```
 
-**Why it works:** logout wipes every slice (including RTK Query cache) in one place. No per-slice `extraReducers` listening for the logout action. Fully typed — no `@ts-ignore`.
+**Why this order:** `SessionProvider` outside so any component (including Redux-connected ones) can `useSession()`. Redux inside so RTK Query mutations can dispatch.
 
-## 7. Typed Redux hooks
+## 9. Typed Redux hooks
 
-`redux/hooks.ts` exports `useAppDispatch` and `useAppSelector` typed against `RootState` and `AppDispatch`. Components never import the raw `useDispatch` / `useSelector` from `react-redux`.
+`redux/hooks.ts` exports `useAppDispatch` and `useAppSelector` typed against `RootState` and `AppDispatch`. Components never import the raw `useDispatch` / `useSelector`.
 
-## 8. React Hook Form + Zod with schema-introspected defaults
+## 10. React Hook Form + Zod with schema-introspected defaults
 
 ```ts
 const schema = z.object({ name: z.string().min(1), age: z.number().min(0) });
@@ -85,50 +204,44 @@ const form = useForm<z.infer<typeof schema>>({
 });
 ```
 
-`getDefaultValuesFromSchema` walks the Zod tree and produces a defaults object that matches the schema shape (empty string for `z.string()`, `null` for nullable, `0` for numeric, etc.). `unwrapZodEffects` peels `.refine()` / `.transform()` wrappers so the introspection works.
+`getDefaultValuesFromSchema` walks the Zod tree and produces a defaults object matching the schema shape. **The same `schema` is imported in `app/api/<feature>/route.ts` and used to validate request bodies** — one source of truth for form + handler validation.
 
-`getMaxLengthsFromSchema` reads `z.string().max(N)` and feeds the `maxLength` attribute to the rendered `<Input>`.
+## 11. Composed form fields built on shadcn `<Form>`
 
-**Why it works:** the schema is the single source of truth for both validation and field configuration. No drift between "what the form accepts" and "what the API will accept."
+`components/forms/FormInputField.tsx` and siblings take `form`, `schema`, `fieldName`, `formLabel` props and render a fully wired `<FormField>`/`<FormItem>`/`<FormLabel>`/`<FormControl>`/`<FormMessage>` block. Every form reuses these.
 
-## 9. Composed form fields built on shadcn `<Form>`
+## 12. `UnsavedChangesWarning` tied to RHF `formState.isDirty`
 
-`components/forms/FormInputField.tsx` and siblings take `form`, `schema`, `fieldName`, `formLabel` props and render a fully wired `<FormField>`, `<FormItem>`, `<FormLabel>`, `<FormControl>`, `<FormMessage>` block. Every form in the app reuses these.
+A small component that hooks into `window.beforeunload` (and Next router events when the API stabilizes) to warn when a form has unsaved changes.
 
-**Why it works:** form layout/spacing/error display is consistent across the app, and changes to the shared field components propagate everywhere. New forms are mostly schema + a list of fields.
+## 13. `error.tsx`, `loading.tsx`, `not-found.tsx` at meaningful segments
 
-## 10. `UnsavedChangesWarning` tied to RHF `formState.isDirty`
+At minimum: global ones at `app/`, group-level ones at `(app)/`, and feature-level `loading.tsx` for any feature that fetches data.
 
-A small component that hooks into in-app navigation (Next router events) and `window.beforeunload` to warn when a form has unsaved changes. Used inside every non-trivial form.
-
-## 11. `error.tsx`, `loading.tsx`, `not-found.tsx` at meaningful segments
-
-At minimum: global ones at `app/`, group-level ones at `(app)/`, and feature-level `loading.tsx` for any feature that fetches data via Suspense.
-
-## 12. Runtime env validation
+## 14. Runtime env validation
 
 ```ts
 // src/config/env.ts
 import { z } from 'zod';
 
 const envSchema = z.object({
-  NEXT_PUBLIC_API_BASE_URL: z.string().url(),
-  NEXT_PUBLIC_PUSHER_KEY: z.string().optional(),
+  AUTH_SECRET: z.string().min(32),
+  AUTH_URL: z.string().url().optional(), // required in prod, optional locally
+  DATABASE_URL: z.string().url(),
+  AUTH_GITHUB_ID: z.string().optional(),
+  AUTH_GITHUB_SECRET: z.string().optional(),
 });
 
-export const env = envSchema.parse({
-  NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
-  NEXT_PUBLIC_PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY,
-});
+export const env = envSchema.parse(process.env);
 ```
 
-**Why it works:** misconfiguration crashes the app at startup with a clear error, not deep inside a request handler with a cryptic `undefined` later.
+**Why:** misconfiguration crashes the app at startup with a clear error, not deep inside a Route Handler with a cryptic `undefined`.
 
-## 13. shadcn primitives owned by the project
+## 15. shadcn primitives owned by the project
 
-`components/ui/button.tsx`, `input.tsx`, `form.tsx`, etc. live in the repo and are editable. They are not pulled from `node_modules`. When the design system evolves, you edit these files; you don't fork a library.
+`components/ui/button.tsx`, `input.tsx`, `form.tsx`, etc. live in the repo and are editable. Not pulled from `node_modules`.
 
-## 14. `cn()` in `lib/utils.ts`
+## 16. `cn()` in `lib/utils.ts`
 
 ```ts
 import { clsx, type ClassValue } from 'clsx';
@@ -136,77 +249,98 @@ import { twMerge } from 'tailwind-merge';
 export function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)); }
 ```
 
-Single source of class merging across the app.
+Single source of class merging.
 
-## 15. Per-feature `_components/` and `_hooks/`
+## 17. Per-feature `_components/` and `_hooks/`
 
-Co-locate the implementation details with the route. When a feature is deleted, the entire folder goes with it; no orphaned files in a shared directory. Promote to `src/components/` only when a second feature genuinely needs the same code.
+Co-locate implementation details with the route. When a feature is deleted, the entire folder goes with it. Promote to `src/components/` only when a second feature genuinely needs it.
 
-## 16. One date library: `date-fns`
+## 18. One date library: `date-fns`
 
-Tree-shakeable, immutable, ESM-friendly. Format helpers live in `lib/formatters/date.ts` so the rest of the codebase doesn't import `date-fns` directly — the wrapper makes it easy to change the underlying library later.
+Tree-shakeable, immutable, ESM-friendly. Format helpers live in `lib/formatters/date.ts`.
 
-## 17. Strict TypeScript
+## 19. Strict TypeScript
 
-`tsconfig.json` with `"strict": true`, `"noUncheckedIndexedAccess": true`, `"forceConsistentCasingInFileNames": true`. The last one catches the duplicate-by-case folder bug at compile time, which is the only place to catch it before Linux production.
+`"strict": true`, `"noUncheckedIndexedAccess": true`, `"forceConsistentCasingInFileNames": true`. The last one catches the duplicate-by-case folder bug at compile time.
 
-## 18. Strict ESLint
+## 20. Strict ESLint
 
-`@typescript-eslint/recommended`, `plugin:react-hooks/recommended`, `plugin:jsx-a11y/recommended`, plus `no-console: warn`, `no-explicit-any: error`, `exhaustive-deps: error`. Pre-commit hook runs `eslint --fix` so the rules actually get enforced.
+`@typescript-eslint/recommended`, `react-hooks/recommended`, `jsx-a11y/recommended`, plus `no-console: warn`, `no-explicit-any: error`, `exhaustive-deps: error`. Pre-commit hook runs `eslint --fix`.
 
-## 19. `middleware.ts` as the auth gate
+## 21. `middleware.ts` as the auth gate
 
 ```ts
 // middleware.ts
-import { NextResponse, type NextRequest } from 'next/server';
+import NextAuth from 'next-auth';
+import authConfig from '@/auth.config';
 
-export function middleware(req: NextRequest) {
-  const session = req.cookies.get('session')?.value;
-  if (!session && req.nextUrl.pathname.startsWith('/app')) {
-    const url = req.nextUrl.clone();
-    url.pathname = '/auth/login';
-    url.searchParams.set('returnTo', req.nextUrl.pathname);
-    return NextResponse.redirect(url);
-  }
-  return NextResponse.next();
-}
+export const { auth: middleware } = NextAuth(authConfig);
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/public).*)'],
+  // /api/auth is NextAuth's own; static assets excluded.
+  matcher: ['/((?!api/auth|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)'],
 };
 ```
 
-(The matcher syntax here is illustrative — the scaffolder picks one that mirrors the project's actual route groups.)
+Path-specific redirects (e.g. `/` → `/app/dashboard` for signed-in users) live in a custom wrapper around `auth()` if needed.
 
-## 20. Vitest + RTL for unit, Playwright for E2E
+## 22. Prisma migrations checked in
+
+`prisma/migrations/**` is committed. CI runs `prisma migrate deploy`. `prisma db push` is only for throwaway prototyping.
+
+## 23. Module augmentation for `Session.user.id` / role
+
+```ts
+// src/types/next-auth.d.ts
+import 'next-auth';
+
+declare module 'next-auth' {
+  interface Session {
+    user: { id: string; email: string; name?: string | null; image?: string | null; role?: string };
+  }
+}
+
+declare module 'next-auth/jwt' {
+  interface JWT { id: string; role?: string }
+}
+```
+
+Without this, `session.user.id` is `undefined` in TypeScript even though the runtime callback added it.
+
+## 24. Vitest + RTL for unit, Playwright for E2E
 
 A new project gets at least:
-- One reducer/slice test (catches accidental shape changes).
-- One form-renders-and-submits test (catches RHF/zod wiring regressions).
-- One Playwright spec that boots the app, logs in, and asserts the dashboard renders (catches middleware and provider regressions).
+- One reducer/slice test.
+- One Zod schema test (validates valid + invalid payloads).
+- One form-renders test.
+- One Playwright spec that logs in (Credentials), lands on dashboard, signs out.
 
-Three tests is enough to make CI meaningful.
-
-## 21. Husky + lint-staged
+## 25. Husky + lint-staged
 
 ```jsonc
-// package.json
 "lint-staged": {
   "*.{ts,tsx}": ["prettier --write", "eslint --fix"],
   "*.{json,md,css}": ["prettier --write"]
 }
 ```
 
-Pre-commit hook keeps formatting and lint clean without anyone having to remember.
+## 26. GitHub Actions CI with a Postgres service
 
-## 22. GitHub Actions CI
+```yaml
+services:
+  postgres:
+    image: postgres:16
+    env: { POSTGRES_PASSWORD: postgres }
+    ports: ['5432:5432']
+    options: --health-cmd pg_isready --health-interval 10s
+```
 
-A single `ci.yml` that runs install → lint → typecheck → test → build on every PR. Build catches RSC/server-component boundary errors that `tsc --noEmit` misses.
+Steps: install → `prisma migrate deploy` → lint → typecheck → test → build.
 
-## 23. `next-nprogress-bar` for top loading bar
+## 27. `next-nprogress-bar` for top loading bar
 
-One small, well-maintained library that hooks into Next.js's router events. Configured once in `providers.tsx`.
+One small, well-maintained library. Configured in `providers.tsx`.
 
-## 24. Toaster via shadcn `use-toast` (or `react-toastify`, not both)
+## 28. Toaster via shadcn `use-toast`
 
-Pick one toast library and wrap it. Composed `Notifications.tsx` is what features call; the underlying library can change without touching feature code.
+One toast library. Composed `Notifications.tsx` wraps it; features call the wrapper.
