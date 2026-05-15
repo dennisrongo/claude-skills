@@ -60,6 +60,16 @@ npm install
 node bin/claude-skills.js list
 ```
 
+## Available skills
+
+| Skill | What it does |
+|---|---|
+| [`conventional-commits`](./skills/conventional-commits/SKILL.md) | Write git commit messages that follow the [Conventional Commits](https://www.conventionalcommits.org/) spec (`feat`, `fix`, `chore`, `docs`, …), auto-prefixed with the ticket number from the current branch (e.g. `feature/12345-...` → `#12345`) and a project tag (`API` / `CLIENT` / `CONSOLE` / `DB`) when detectable from the diff. Both prefixes are omitted when they don't apply. Triggers on commit-message requests. |
+| [`handoff`](./skills/handoff/SKILL.md) | Capture a session hand-off before context runs out — writes a dated `.claude/handoffs/*.md` (objective, progress, decisions, files, open issues, ready-to-paste next-session prompt) plus a lightweight memory pointer so a fresh Claude session can resume cleanly. |
+| [`pr-review`](./skills/pr-review/SKILL.md) | Conduct a structured PR / diff review prioritized correctness → design → tests → security → performance → readability, with categorized feedback (`blocking` / `suggestion` / `question` / `nit` / `praise`). |
+
+Run `claude-skills list` to see this list with install status, or browse [`skills/`](./skills) directly.
+
 ## How Claude Code finds these skills
 
 Claude Code looks for `SKILL.md` files in:
