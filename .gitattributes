@@ -1,0 +1,25 @@
+# Default: let git auto-detect text/binary, normalize to LF in the repo.
+* text=auto eol=lf
+
+# Files invoked via a shebang MUST be LF on every platform — a stray CRLF
+# in `#!/usr/bin/env node\r` breaks execution on macOS/Linux because the
+# kernel treats `\r` as part of the interpreter path.
+bin/*.js text eol=lf
+
+# Shell scripts and YAML pipelines: always LF.
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Markdown: keep LF so npm renders consistently from the published tarball.
+*.md text eol=lf
+
+# Common binary types — never normalize.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.tgz binary
