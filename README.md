@@ -12,15 +12,23 @@ Run directly from GitHub — no clone, no npm publish needed:
 # See what's in the library
 npx github:dennisrongo/claude-skills list
 
-# Interactive picker (recommended first time)
+# Interactive picker, global (~/.claude/skills)
 npx github:dennisrongo/claude-skills install
+
+# Interactive picker, project-scoped (./.claude/skills)
+npx github:dennisrongo/claude-skills install -p
 
 # Install specific skills globally (~/.claude/skills)
 npx github:dennisrongo/claude-skills install conventional-commits pr-review
 
+# Install specific skills into the current project
+npx github:dennisrongo/claude-skills install conventional-commits pr-review -p
+
 # Install everything into the current project (./.claude/skills)
 npx github:dennisrongo/claude-skills install --all --project
 ```
+
+> The interactive picker, `--all`, and named-skill installs all accept `-p` / `--project` to target `./.claude/skills` instead of the global `~/.claude/skills`. Run it from the project root.
 
 ### Shorter alias (recommended)
 
