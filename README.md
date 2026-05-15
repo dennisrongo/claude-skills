@@ -1,8 +1,10 @@
 # claude-skills
 
-A curated, fine-tunable library of [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) skills. Install globally or per-project with one command.
+The [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) skills I ([Dennis Rongo](https://github.com/dennisrongo)) use every day — not shelfware, not theory. Each one earns its place by surviving real work: shipping .NET APIs and Next.js frontends, reviewing PRs, debugging production, and keeping commits clean.
 
-> Skills are reusable bundles of instructions that Claude consults when relevant. This repo is a personal/team library of them — grow it over time, tune the ones that misfire, and install the set you want on any machine.
+They're small, composable, and meant to be tuned. Install the ones you want, edit them in-place, send a PR if yours sharpens mine.
+
+> Skills are reusable bundles of instructions that Claude consults when relevant. This repo is my personal daily-driver library — grow it over time, tune the ones that misfire, install the set you want on any machine.
 
 ## Quick start
 
