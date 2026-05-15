@@ -27,6 +27,8 @@ The skill has six phases. Do **not** skip Phase 1 or Phase 3 — they're the val
 
 Interview the user relentlessly about every aspect of the feature until you reach a shared, unambiguous understanding. Walk down each branch of the design tree, resolving dependencies between decisions one at a time.
 
+If the feature is large, fuzzy, or still in discovery — defer to [`grill-with-docs`](../grill-with-docs/SKILL.md) first to sharpen the spec and update `CONTEXT.md` / ADRs, then come back here to build. For smaller, well-scoped features keep grilling inline below.
+
 Rules:
 
 - **One question at a time.** Wait for the answer before the next one. Use `AskUserQuestion` with 2–4 concrete options and a recommended pick first.
@@ -209,4 +211,4 @@ When appending:
 - If the project uses `CONTEXT.md` / `docs/adr/`, prefer adding to those over inventing a new doc folder. Update `CONTEXT.md` inline when a Phase 1 conversation resolves a fuzzy term — it's a glossary, not a spec.
 - If the feature seems to demand an ADR (hard-to-reverse choice, surprising to a future reader, a real trade-off with alternatives), offer it after the build, not before — you have more information once it's working.
 - The "no SQL execution" rule is absolute. If the user explicitly asks you to run a migration, decline within this skill and tell them to run it themselves, then mention they can drop the skill if they want autonomous execution.
-- Adapted in part from Matt Pocock's `grill-with-docs` skill (interview-relentlessly, sharpen-fuzzy-terms, cross-reference-with-code), extended with a build phase and explicit guardrails around tests and migrations.
+- Adapted in part from Matt Pocock's `grill-with-docs` skill (interview-relentlessly, sharpen-fuzzy-terms, cross-reference-with-code), extended with a build phase and explicit guardrails around tests and migrations. The standalone [`grill-with-docs`](../grill-with-docs/SKILL.md) in this library handles the discovery-only case.
