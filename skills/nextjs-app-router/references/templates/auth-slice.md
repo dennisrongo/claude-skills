@@ -1,95 +1,99 @@
-# Auth slice and auth API template
+# NextAuth integration (replaces the old auth slice)
 
-## `src/redux/features/authSlice.ts`
+There is **no `authSlice.ts`** in this project. NextAuth's `SessionProvider` is the single source of session truth. This file documents how the pieces fit together so nobody is tempted to reintroduce a redundant Redux slice.
 
-```ts
-import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { authApi } from '@/redux/api/authApi';
+## Where session state lives
 
-export interface AuthUser {
-  id: string;
-  email: string;
-  name: string;
-  roles: string[];
+| Need | Source |
+|------|--------|
+| "Is the user signed in?" (client) | `useSession()` from `next-auth/react` |
+| User id, email, role (client) | `useSession().data.user` |
+| Server-side session inside a Route Handler | `await auth()` (or `requireSession()`) |
+| Server-side session inside a server component (layouts only) | `await auth()` — **but layouts should not need this; middleware already gated** |
+| Sign-in trigger | `signIn('credentials', { email, password, redirect: false })` from `next-auth/react` |
+| Sign-out trigger | `signOut({ callbackUrl: '/auth/login', redirect: true })` |
+| Auth gate at the network boundary | `middleware.ts` |
+
+## Sign-in (Credentials provider)
+
+```tsx
+// src/app/(public)/auth/login/_components/LoginForm.tsx
+'use client';
+
+import { signIn } from 'next-auth/react';
+import { useRouter, useSearchParams } from 'next/navigation';
+
+// inside onSubmit:
+const res = await signIn('credentials', { email, password, redirect: false });
+if (res?.error) {
+  // surface "Invalid email or password." — don't leak which field was wrong
+  return;
 }
+router.replace(searchParams.get('returnTo') ?? '/app/dashboard');
+router.refresh();
+```
 
-interface AuthState {
-  user: AuthUser | null;
-  token: string | null; // only populated for bearer-flow projects; null for httpOnly-cookie flows
-  expiresAt: number | null;
-}
+## Sign-out
 
-const initialState: AuthState = {
-  user: null,
-  token: null,
-  expiresAt: null,
+```tsx
+'use client';
+import { signOut } from 'next-auth/react';
+
+<Button onClick={() => signOut({ callbackUrl: '/auth/login', redirect: true })}>
+  Sign out
+</Button>
+```
+
+The Redux store's `signOutEvent` is also dispatched from the RTK Query base on 401 (see [`api-base.md`](api-base.md)) to clear cached queries. For a user-initiated sign-out, that happens implicitly when the next request 401s — but if you want to clear the cache immediately on click, dispatch `signOutEvent` before calling `signOut`:
+
+```tsx
+import { useDispatch } from 'react-redux';
+import { signOutEvent } from '@/redux/store';
+
+const dispatch = useDispatch();
+const onSignOut = () => {
+  dispatch(signOutEvent);
+  void signOut({ callbackUrl: '/auth/login', redirect: true });
 };
-
-export const authSlice = createSlice({
-  name: 'auth',
-  initialState,
-  reducers: {
-    logout: () => initialState,
-    setUser: (state, action: PayloadAction<AuthUser>) => {
-      state.user = action.payload;
-    },
-  },
-  extraReducers: (builder) => {
-    builder.addMatcher(authApi.endpoints.login.matchFulfilled, (state, { payload }) => {
-      state.user = payload.user;
-      state.token = payload.token ?? null;
-      state.expiresAt = payload.expiresAt ?? null;
-    });
-    builder.addMatcher(authApi.endpoints.getMe.matchFulfilled, (state, { payload }) => {
-      state.user = payload;
-    });
-  },
-});
-
-export const { logout, setUser } = authSlice.actions;
 ```
 
-**Note:** the store's `rootReducer` already wipes the entire store on `authApi.endpoints.logout.matchFulfilled` — so a `logout()` action dispatched here from the 401 handler still triggers a full state reset via the wrapped reducer in `store.ts`. The slice's own `logout` reducer is there for cases where the user explicitly clicks "Sign out" without hitting the logout endpoint.
+## Module augmentation — `src/types/next-auth.d.ts`
 
-## `src/redux/api/authApi.ts`
+Without this, `session.user.id` is `undefined` in TypeScript even though the runtime callback puts it there.
 
 ```ts
-import { api } from './api';
-import type { AuthUser } from '@/redux/features/authSlice';
+import 'next-auth';
+import 'next-auth/jwt';
 
-export interface LoginRequest {
-  email: string;
-  password: string;
+declare module 'next-auth' {
+  interface Session {
+    user: {
+      id: string;
+      email: string;
+      name?: string | null;
+      image?: string | null;
+      role?: string;
+    };
+  }
+
+  interface User {
+    id: string;
+    role?: string;
+  }
 }
 
-export interface LoginResponse {
-  user: AuthUser;
-  /** Populated only for bearer-token flows. httpOnly-cookie flows leave this undefined. */
-  token?: string;
-  expiresAt?: number;
+declare module 'next-auth/jwt' {
+  interface JWT {
+    id: string;
+    role?: string;
+  }
 }
-
-export const authApi = api.injectEndpoints({
-  endpoints: (build) => ({
-    login: build.mutation<LoginResponse, LoginRequest>({
-      query: (body) => ({ url: '/auth/login', method: 'POST', body }),
-      invalidatesTags: ['Auth'],
-    }),
-    logout: build.mutation<void, void>({
-      query: () => ({ url: '/auth/logout', method: 'POST' }),
-      invalidatesTags: ['Auth'],
-    }),
-    getMe: build.query<AuthUser, void>({
-      query: () => '/auth/me',
-      providesTags: ['Auth'],
-    }),
-  }),
-});
-
-export const { useLoginMutation, useLogoutMutation, useGetMeQuery } = authApi;
 ```
 
-**Forbidden:**
-- Storing the token via `js-cookie` inside the slice (`Cookies.set('token', ...)`). For `httpOnly` flows, the backend sets the cookie; for bearer flows, the token lives in Redux state and the `prepareHeaders` callback attaches it. Never both.
-- Base64-encoding the user and writing it to a cookie (`Cookies.set('user', btoa(JSON.stringify(...)))`). It's not encryption, it's obfuscation. If the server needs the user, the server reads it from the session cookie / database.
-- Decoding the JWT on the client to drive auth decisions. Decode only for non-sensitive display (e.g. showing the user's name pulled from a claim) — never as the gate. The gate is the server.
+## Forbidden
+
+- A Redux `authSlice` storing `user`, `token`, or `expiresAt`. Use `useSession()`.
+- Manual `js-cookie` writes (`Cookies.set('token', ...)`). NextAuth owns the session cookie and it's `httpOnly` by design.
+- Decoding the NextAuth JWT on the client. Use the hook.
+- Calling `await auth()` inside a server `layout.tsx` "just to check". Middleware already gated. Calling `auth()` again is a round-trip with no behavior change.
+- A second auth library (`Clerk`, `Lucia`, custom JWT signer) running alongside NextAuth.

@@ -1,6 +1,6 @@
-# Root layout, root page, error/not-found templates
+# Root layout, error/not-found, login page
 
-## `src/app/layout.tsx` (SERVER component)
+## `src/app/layout.tsx` (SERVER component — the only one)
 
 ```tsx
 import '@/app/globals.css';
@@ -26,34 +26,50 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }
 ```
 
-**NO `'use client'`. NO `useEffect`. NO `useRouter`.** The root layout is a server component.
+**NO `'use client'`. NO data fetching. NO `await db.*`.** This is the only server component in the app and its job is to render `<Providers>`.
 
-## `src/app/page.tsx` (SERVER component, redirect-only)
+## No `src/app/page.tsx` by default
 
-If the project has an authenticated landing route, the root page is a server `redirect`:
+`middleware.ts` handles `/`:
+- Signed-in users → `/app/dashboard` (302).
+- Signed-out users → `/auth/login` (302).
 
-```tsx
-import { redirect } from 'next/navigation';
-
-export default function Home() {
-  redirect('/dashboard');
-}
-```
-
-If the project has a marketing landing page, render content instead — still as a server component, no `'use client'`.
-
-**Forbidden:**
+Don't create an `app/page.tsx` unless the project has a public landing page. If it does, the page is `'use client'`:
 
 ```tsx
-// ❌ DO NOT generate this.
+// src/app/page.tsx — ONLY if a marketing landing is needed
 'use client';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-export default function Home() {
-  const router = useRouter();
-  useEffect(() => router.push('/dashboard'));
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+
+export default function LandingPage() {
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center gap-6">
+      <h1 className="text-4xl font-bold">{{Project Title}}</h1>
+      <Button asChild>
+        <Link href="/auth/login">Sign in</Link>
+      </Button>
+    </main>
+  );
 }
 ```
+
+**Forbidden** (do not generate):
+
+```tsx
+// ❌ server page doing a redirect
+import { redirect } from 'next/navigation';
+export default function Home() { redirect('/dashboard'); }
+
+// ❌ server page doing data fetching
+export default async function Home() {
+  const session = await auth();
+  const data = await db.x.findMany();
+  return <Dashboard data={data} session={session} />;
+}
+```
+
+The middleware handles redirects. RTK Query handles data.
 
 ## `src/app/error.tsx` (CLIENT — Next requires it)
 
@@ -85,9 +101,11 @@ export default function GlobalError({
 }
 ```
 
-## `src/app/not-found.tsx` (SERVER component)
+## `src/app/not-found.tsx` (CLIENT, since no SSR)
 
 ```tsx
+'use client';
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -103,7 +121,68 @@ export default function NotFound() {
 }
 ```
 
-## `src/app/globals.css` (Tailwind layer + shadcn CSS variables)
+## `src/app/(public)/auth/login/page.tsx` (CLIENT, calls NextAuth `signIn`)
+
+```tsx
+'use client';
+
+import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { signIn } from 'next-auth/react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Form } from '@/components/ui/form';
+import { Button } from '@/components/ui/button';
+import { FormInputField } from '@/components/forms/FormInputField';
+import { FormPasswordField } from '@/components/forms/FormPasswordField';
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1, 'Required'),
+});
+
+type LoginFormValues = z.infer<typeof loginSchema>;
+
+export default function LoginPage() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const returnTo = params.get('returnTo') ?? '/app/dashboard';
+  const [error, setError] = useState<string | null>(null);
+
+  const form = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: '', password: '' },
+  });
+
+  const onSubmit = async (values: LoginFormValues) => {
+    setError(null);
+    const res = await signIn('credentials', { ...values, redirect: false });
+    if (res?.error) {
+      setError('Invalid email or password.');
+      return;
+    }
+    router.replace(returnTo);
+    router.refresh();
+  };
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <h1 className="text-xl font-semibold">Sign in</h1>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <FormInputField form={form} schema={loginSchema} fieldName="email" label="Email" type="email" autoComplete="email" />
+        <FormPasswordField form={form} schema={loginSchema} fieldName="password" label="Password" autoComplete="current-password" />
+        <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+          {form.formState.isSubmitting ? 'Signing in…' : 'Sign in'}
+        </Button>
+      </form>
+    </Form>
+  );
+}
+```
+
+## `src/app/globals.css` (Tailwind + shadcn tokens)
 
 ```css
 @tailwind base;

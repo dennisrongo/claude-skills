@@ -2,42 +2,79 @@
 
 Each entry below explains **what** the pattern looks like in the wild, **why** it's bad, and **what to do instead**. The skill must not emit any of these. If a user explicitly requests one, push back with the rationale before complying.
 
-## 1. `'use client'` on the root page with a `useEffect(() => router.push(...))` redirect
+> **About the SPA-style choice.** This project is deliberately API-driven, not SSR. Pages are `'use client'`. Data goes through RTK Query → Route Handlers. That choice eliminates a whole class of "is this server or client?" bugs, makes mocking trivial in tests, and matches how the team thinks about the app (frontend + backend with a clean HTTP seam). Several anti-patterns below exist *because* of that choice — they're not absolute rules in every Next.js project, but they are absolute rules in this one.
+
+## 1. `fetch()` or `await db.*` inside a server component
 
 ```tsx
-// app/page.tsx — BAD
-'use client';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-export default function Home() {
-  const router = useRouter();
-  useEffect(() => { router.push('/dashboard'); });
+// app/(app)/dashboard/page.tsx — BAD
+export default async function DashboardPage() {
+  const stats = await db.stats.findMany();
+  return <Dashboard stats={stats} />;
 }
 ```
 
-**Why bad:**
-- The page renders blank HTML on first load (no SSR content), so Open Graph crawlers, SEO, and link-preview tools see nothing.
-- Causes a visible flash (empty page → JS hydrate → navigate).
-- Costs an extra client navigation that could have been a 308 from the server.
-- Defeats Next.js's built-in `redirect()` machinery.
+**Why bad:** the app is API-driven by deliberate choice. SSR data fetching breaks the one-way data flow (UI → RTK Query → /api → DB), produces a different code path in production than in dev (server fetch vs. browser fetch), defeats RTK Query's caching/devtools/invalidation, and makes integration tests harder because you now have two ways to load data.
 
-**Do instead:**
+**Do instead:** make the page `'use client'` and call `useGetStatsQuery()` from `src/redux/api/statsApi.ts`. The matching `src/app/api/stats/route.ts` does the `db.*` call.
+
+## 2. `'use server'` directive (Server Actions)
 
 ```tsx
-// app/page.tsx — GOOD
+// BAD
+'use server';
+export async function createCustomer(formData: FormData) { ... }
+```
+
+**Why bad:** Server Actions are a second mutation path competing with RTK Query mutations. The project picks one. Mixed projects develop "do we do this with an Action or a mutation?" cargo-culting, two error-handling stories, two loading-state stories, and two places to forget the auth check.
+
+**Do instead:** mutations are RTK Query mutations calling a Route Handler. The handler does `await auth()` + Zod validation + Prisma write.
+
+## 3. `async function Page` in any `page.tsx`
+
+Pages are `'use client'` and synchronous. The body uses RTK Query hooks. If you see `export default async function ...Page(...)` you've reintroduced SSR data fetching by accident.
+
+## 4. `redirect()` from a server `page.tsx` as the auth gate
+
+```tsx
+// BAD
+import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
-export default function Home() {
-  redirect('/dashboard');
+export default async function AppLayout({ children }) {
+  const session = await auth();
+  if (!session) redirect('/auth/login');
+  return <>{children}</>;
 }
 ```
 
-Or handle it in `middleware.ts` if the redirect target depends on auth/session.
+**Why bad:** belt-and-suspenders auth fragmented across layout files. The gate is `middleware.ts`. A layout-level `redirect` runs *after* the page is requested (more work for nothing) and gives no consistent behavior across routes.
 
-## 2. `'use client'` on `app/layout.tsx` or route-group `layout.tsx`
+**Do instead:** `middleware.ts` re-exports (or wraps) `auth` from `src/auth.config.ts`. Unauthenticated requests to protected paths are 302'd before any layout renders. Layouts assume they're authenticated when they render.
 
-Marking a layout `'use client'` opts the entire subtree into client rendering and disables streaming, server data fetches, and `metadata` exports from descendants. Layouts should stay server components; push the client-only chrome (`AppShell`, `Sidebar`) into a `'use client'` child component imported from `_components/`.
+## 5. Custom JWT-in-`httpOnly`-cookie schemes alongside NextAuth
 
-## 3. `serializableCheck: false` (or `immutableCheck: false`)
+```ts
+// BAD — competing with NextAuth
+cookies().set('session', signToken(user), { httpOnly: true, ... });
+```
+
+**Why bad:** two auth systems in one app. NextAuth already manages the session cookie; rolling your own next to it gives you race conditions on logout (which cookie wins?), two refresh stories, two CSRF stories, and a guaranteed bug when the user signs out from one but not the other.
+
+**Do instead:** NextAuth is the only auth system. If you need extra state on the session (role, org), add a `jwt` callback in `src/auth.ts` that augments the token.
+
+## 6. Decoding the NextAuth JWT manually on the client
+
+```tsx
+// BAD
+const token = document.cookie.match(/next-auth.session-token=([^;]+)/)?.[1];
+const claims = jwtDecode(token!);
+```
+
+**Why bad:** the cookie is `httpOnly` by default (it shouldn't even be readable from JS). Even if it weren't, decoding ≠ verifying. Use the official hook — it handles refresh, expiry, and SSR-safe rendering.
+
+**Do instead:** `const { data: session } = useSession()` from `next-auth/react`. Server-side (Route Handlers): `const session = await auth()`.
+
+## 7. `serializableCheck: false` (or `immutableCheck: false`)
 
 ```ts
 // store.ts — BAD
@@ -51,74 +88,60 @@ middleware: (getDefaultMiddleware) =>
 
 ```ts
 serializableCheck: {
-  ignoredPaths: ['auth.expiresAt'],
+  ignoredPaths: ['someFeature.someDate'],
   ignoredActions: ['someApi/executeMutation/fulfilled'],
 },
 ```
 
 …and leave a comment naming what's stored there and why it can't be a plain value.
 
-## 4. `@ts-ignore` / `as any` in the store, providers, or API layer
+## 8. `@ts-ignore` / `as any` in the store, providers, API layer, or Route Handlers
 
 These are the load-bearing files of the entire app. If TypeScript is unhappy with them, the types are wrong — fix them. Use `satisfies`, narrow the inferred type, or extract a typed helper. `@ts-ignore` here hides real type breakage from refactors.
 
-## 5. Commented-out reducers, endpoints, imports
+## 9. Commented-out reducers, endpoints, imports
 
-`store.ts` that imports `authApi` and `dashboardApi` but commented out the lines that register their reducers in `combineReducers` is a half-finished refactor pretending to be code. Either wire it up or delete it. The git history is the right place for "we used to do this."
+`store.ts` that imports `authApi` and `dashboardApi` but commented out the lines that register their reducers is a half-finished refactor pretending to be code. Either wire it up or delete it. Git history is the right place for "we used to do this."
 
-## 6. `moment` alongside `date-fns`
+## 10. `moment` alongside `date-fns`
 
-`moment` is in maintenance mode, mutable, and ships ~300 KB minified. `date-fns` is tree-shakeable, immutable, and ESM. Mixing them means two date libraries to learn, two timezone behaviors to reconcile, and two bundles in the user's tab. Pick `date-fns` for new projects.
+`moment` is in maintenance mode, mutable, and ships ~300 KB minified. `date-fns` is tree-shakeable, immutable, and ESM. Pick `date-fns`.
 
-## 7. `styled-components` (or Emotion) in a Tailwind project
+## 11. `styled-components` (or Emotion) in a Tailwind project
 
-The stack is Tailwind utilities + Radix primitives + `class-variance-authority` for variants + `cn()` for merging. Adding a CSS-in-JS runtime gives you two styling systems, two specificity stories, and a hydration cost. If a `styled-components` import sneaks in (often from copied legacy code), remove it.
+The stack is Tailwind utilities + Radix primitives + `class-variance-authority` for variants + `cn()` for merging. Adding a CSS-in-JS runtime gives you two styling systems, two specificity stories, and a hydration cost.
 
-## 8. Duplicate-by-case folders or files
+## 12. Duplicate-by-case folders or files
 
-`src/models/stateProjectReports/` and `src/models/stateprojectreport/` work on Windows (case-insensitive) and break on Linux (case-sensitive). Imports resolve to one or the other depending on which the bundler sees first, producing "works on my machine" bugs that surface only in CI or production. Enforce one canonical casing.
+`src/models/StateReports/` and `src/models/statereports/` work on Windows (case-insensitive) and break on Linux (case-sensitive). Enforce one canonical casing.
 
-## 9. `dangerouslySetInnerHTML` without server-side sanitization
+## 13. `dangerouslySetInnerHTML` without server-side sanitization
 
-```tsx
-<div dangerouslySetInnerHTML={{ __html: apiResponse.body }} />
-```
-
-If `apiResponse.body` is anything other than provably safe (e.g., a static template you control), this is an XSS vector. The fix is layered:
+If `apiResponse.body` is anything other than provably safe, this is an XSS vector. Fix layered:
 
 1. Prefer rendering as JSX / Markdown via a strict renderer (no raw HTML).
-2. If raw HTML is genuinely required, sanitize at the source — server-side allowlist, or DOMPurify on the client with a configured profile.
-3. Add an inline comment naming the sanitization point so the next reviewer knows it isn't accidental.
+2. If raw HTML is genuinely required, sanitize at the source — server-side allowlist in the Route Handler, or DOMPurify on the client with a configured profile.
+3. Inline comment naming the sanitization point.
 
-A scaffolded project should not contain any `dangerouslySetInnerHTML` calls; if a feature genuinely needs one, add it with the comment above.
+A scaffolded project should not contain any `dangerouslySetInnerHTML` calls.
 
-## 10. `sessionStorage` / `localStorage` for non-transient state
+## 14. `sessionStorage` / `localStorage` for non-transient state
 
-`sessionStorage.setItem('wizardStep', JSON.stringify(state))` is a shortcut that almost always grows into a bug:
 - Not SSR-safe (`ReferenceError: sessionStorage is not defined`).
-- Survives tab refreshes but not new tabs — confusing for users.
-- Easy to forget to clear, leading to stale state in later sessions.
+- Survives tab refreshes but not new tabs.
+- Easy to forget to clear.
 
-**Do instead:**
-- Multi-step wizard state → URL search params (`useSearchParams`) so it's shareable and back-button-safe, or Redux if it must be shared across routes.
-- Token persistence → `httpOnly` cookies (server-set), never `localStorage`.
-- Truly transient UI state → component state.
+**Do instead:** URL search params for shareable state, Redux for cross-route state, component state for transient UI. Tokens never go in `localStorage` — NextAuth's cookie is `httpOnly`.
 
-## 11. JWT in a JS-accessible cookie or `localStorage`
+## 15. JWT in a JS-accessible cookie or `localStorage`
 
-A token in `js-cookie` or `localStorage` is reachable from any XSS payload that lands on the page. The mitigation is `httpOnly` cookies (the browser sends them with requests, but JS cannot read them):
+A token in `localStorage` is reachable from any XSS payload. NextAuth's session cookie is `httpOnly` by default — leave it that way. Do not add `js-cookie` and write parallel auth state to a readable cookie.
 
-- The login endpoint should set the cookie via a server response header.
-- `middleware.ts` reads the cookie on the server to gate routes.
-- RTK Query sends the cookie automatically via `credentials: 'include'` on `fetch`.
+## 16. A `src/proxy.ts` (or equivalent) standing in for `middleware.ts`
 
-If the chosen backend cannot set cookies and forces a `Authorization: Bearer` flow with a client-readable token, document the XSS surface in the project README and treat every `dangerouslySetInnerHTML`, `eval`, or untrusted third-party script as a P1 risk.
+Next.js has exactly one place that intercepts requests: `middleware.ts` at the project root. A `src/proxy.ts` that imports `next/server` and exports a function but isn't wired into the framework is dead code that *looks* like a guard. Either move its logic into `middleware.ts` or delete it.
 
-## 12. A `src/proxy.ts` (or equivalent) standing in for `middleware.ts`
-
-Next.js has exactly one place that intercepts requests at the network boundary: `middleware.ts` at the project root. A file named `src/proxy.ts` that imports `next/server` and exports a function but isn't wired into the framework is dead code that *looks* like a guard. Either move its logic into `middleware.ts` or delete it.
-
-## 13. Inline `fetch` in components
+## 17. Inline `fetch` in components
 
 ```tsx
 useEffect(() => {
@@ -126,78 +149,119 @@ useEffect(() => {
 }, []);
 ```
 
-This bypasses the cache, retries, error handling, devtools integration, and tag-based invalidation that RTK Query gives you for free. It also produces inconsistent loading/error UX across the app. All backend calls go through RTK Query. If a single specific case genuinely needs raw `fetch` (e.g., streaming a file download), justify it in a comment.
+This bypasses the cache, retries, error handling, devtools, and tag-based invalidation that RTK Query gives you for free. **All** backend calls go through RTK Query.
 
-## 14. Redux for local / URL / form state
+## 18. Redux for local / URL / form state
 
 If a piece of state is:
 - Only read inside one component → `useState` / `useReducer`.
 - Shareable via URL (filters, page numbers, selected tab) → `useSearchParams`.
 - Form values → React Hook Form's internal state.
+- Session/user info → `useSession()` from `next-auth/react`.
 
-Reach for Redux only when state is genuinely shared across routes/components and isn't already covered by an RTK Query cache. `directoryResultsSlice`-style slices that hold the last list-view filter set are usually a smell.
+Reach for Redux only when state is genuinely shared across routes and isn't already covered by an RTK Query cache or NextAuth.
 
-## 15. Many independent `createApi(...)` instances
+## 19. Many independent `createApi(...)` instances
 
 ```ts
 export const authApi = createApi({ reducerPath: 'auth', ... });
 export const customersApi = createApi({ reducerPath: 'customers', ... });
-export const invoicesApi = createApi({ reducerPath: 'invoices', ... });
 ```
 
-Each instance has its own reducer path, middleware, cache, and tag-type set. They cannot invalidate each other's queries by tag. The right pattern is one base `api` with `injectEndpoints` per domain.
+Each instance has its own cache and tag-type set; they can't invalidate each other. One base `api` with `injectEndpoints` per domain.
 
-## 16. `window.location.href = '/auth/login'` from inside `baseQuery` for 401
+## 20. `window.location.href = '/auth/login'` from inside `baseQuery` for 401
 
-It works, but:
-- Loses unsaved form state.
-- Forces a full page reload (re-downloads JS, re-hydrates Redux).
-- Race conditions when multiple in-flight requests all hit 401 at once.
+Loses unsaved form state, full page reload, race conditions when multiple in-flight requests 401 at once.
 
-**Do instead:** dispatch a `logout` action; let the root reducer reset state cleanly; let `middleware.ts` (which now sees no session) handle the redirect on the next request, or call `router.replace('/auth/login')` from a single coordinator. Keep the hard `window.location` redirect only as a last-resort fallback.
+**Do instead:** call `signOut({ callbackUrl: '/auth/login', redirect: true })` from `next-auth/react` inside the base query's 401 branch. NextAuth clears the cookie and routes cleanly.
 
-## 17. Missing `error.tsx` / `loading.tsx` / `not-found.tsx`
+## 21. Multiple `PrismaClient` instances
 
-The `(app)` group needs at minimum:
-- `loading.tsx` — shown by Suspense while server components fetch.
-- `error.tsx` — caught for runtime errors and RTK Query failures bubbling through `unwrap()`.
-- `not-found.tsx` — for 404s from `notFound()` calls and unmatched routes.
+```ts
+// some-route.ts — BAD
+const prisma = new PrismaClient();
+```
 
-Without these, the user sees a blank screen or the global error boundary, both of which are worse UX than a typed empty state.
+Every dev hot-reload spawns a new client and burns through Postgres connections. Use the singleton:
 
-## 18. No tests at all
+```ts
+// src/lib/db.ts
+import { PrismaClient } from '@prisma/client';
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+export const db = globalForPrisma.prisma ?? new PrismaClient();
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db;
+```
 
-A `package.json` with no `test` script tells you nobody runs anything before merging. Even a single reducer test, a single form-renders test, and a single Playwright login spec give CI something to enforce and break loudly when something regresses. The bar is "smoke tests exist," not "100% coverage."
+…and every handler imports `db` from there.
 
-## 19. ESLint extending only `next/core-web-vitals`
+## 22. Route Handlers without `await auth()`
 
-The Next preset is good but minimal. Add at least:
-- `@typescript-eslint/recommended` (or `recommended-type-checked` if your CI has the budget).
-- `plugin:react-hooks/recommended` — catches the missing-deps and Rules-of-Hooks bugs that `next/core-web-vitals` does not.
-- `plugin:jsx-a11y/recommended` — accessibility lint.
-- Project rules: `no-console: ['warn', { allow: ['warn', 'error'] }]`, `@typescript-eslint/no-explicit-any: 'error'`, `react-hooks/exhaustive-deps: 'error'`, `prefer-const: 'error'`.
+```ts
+// app/api/customers/route.ts — BAD
+export async function GET() {
+  const customers = await db.customer.findMany();
+  return Response.json(customers);
+}
+```
 
-## 20. Over-extended Tailwind config
+Anyone with the URL can read every customer. **Every** handler (except `/api/auth/[...nextauth]` and explicit public endpoints like `/api/health`) calls `requireSession()` (or `await auth()`) first and 401s on absence. Use the helper in `src/lib/api-auth.ts`.
 
-`tailwind.config.ts` that adds 50+ custom spacing tokens, half of them commented out, and three custom animation timing functions, is design-system debt waiting to bite. Extend Tailwind for:
-- Brand colors (named with a project prefix).
-- Custom fonts.
-- Genuine design tokens you reuse.
+## 23. Route Handlers that trust client-sent user IDs for ownership
 
-Use the defaults for everything else.
+```ts
+// BAD
+const { userId, ...data } = await req.json();
+await db.customer.create({ data: { ...data, userId } });
+```
 
-## 21. Per-feature client guards as the only auth check
+A logged-in user can write under any other user's ID by lying in the request body. Read the user ID from the session:
 
-A `<AuthExpirationHandler>` that the app shell mounts and that runs `if (!token) router.push('/auth/login')` on an interval is a belt; it is not the only line of defense. The primary auth check is `middleware.ts`, server-side, before the route renders. Client guards exist for session expiry while the user is already inside the app.
+```ts
+const session = await requireSession();
+await db.customer.create({ data: { ...validated, userId: session.user.id } });
+```
 
-## 22. PM2 / `ecosystem.config.js` without considering simpler hosting
+Ownership reads use `where: { id, userId: session.user.id }` so a stranger's record returns 404 / null, not someone else's data.
 
-If the target deploy is Vercel / Cloudflare / Netlify / any container orchestrator, the PM2 process file is unused weight. Add it only when the user explicitly asks for a VM-style `node`/`next start` deployment.
+## 24. `prisma db push` in CI or against shared databases
 
-## 23. Hand-rolled custom `proxy.ts` config when Next.js rewrites would do
+`db push` skips the migration history. Two engineers running `db push` against different branches produce divergent schemas that aren't represented in `prisma/migrations/`. Use `prisma migrate dev` in development and `prisma migrate deploy` in CI. `db push` is only for local prototyping you're about to throw away.
 
-If the goal is "the frontend calls `/api/...` and Next.js forwards to a backend," use `next.config.ts` `rewrites()` — not a custom request-interception file.
+## 25. `prisma migrate reset` without explicit user confirmation
 
-## 24. Mixing client navigation libraries
+Drops the database. The skill never runs this unprompted. If the user asks for it, confirm and pause for a verbal "yes."
 
-`next-nprogress-bar` is fine for the top loading bar; don't also pull in `nprogress` or a second router-event listener. Pick one progress UI.
+## 26. Missing `error.tsx` / `loading.tsx` on the `(app)` group
+
+Without these the user sees a blank screen during RTK Query loads and the global error boundary on any unwrap failure.
+
+## 27. No tests at all
+
+A `package.json` with no `test` script means nothing gets enforced before merge. The bar is "smoke tests exist": one schema test, one component test, one E2E auth flow.
+
+## 28. ESLint extending only `next/core-web-vitals`
+
+Add `@typescript-eslint/recommended`, `react-hooks/recommended`, `jsx-a11y/recommended`, plus project rules (`no-console: warn`, `no-explicit-any: error`, `exhaustive-deps: error`, `prefer-const: error`).
+
+## 29. Over-extended Tailwind config
+
+50+ custom spacing tokens, three custom animation timings — design-system debt. Extend Tailwind only for brand colors, custom fonts, and genuine design tokens.
+
+## 30. Per-feature client guards as the only auth check
+
+A `<AuthExpirationHandler>` running on an interval is **not** the primary guard. The primary guard is `middleware.ts`. Client guards exist to handle session expiry mid-app — belt-and-suspenders, not the gate.
+
+## 31. PM2 / `ecosystem.config.js` without considering simpler hosting
+
+If the target is Vercel / Cloudflare / a container orchestrator, PM2 is unused weight. Add only when the user explicitly asks for VM-style hosting.
+
+## 32. Importing the Prisma adapter (or `@/lib/db`) inside `src/auth.config.ts`
+
+`auth.config.ts` is consumed by `middleware.ts`, which runs on the Edge runtime. Edge cannot import the Prisma client (Node-only). If you accidentally import `@/lib/db` into `auth.config.ts`, the production build fails with a confusing "module not found in edge runtime" error.
+
+**Rule:** `auth.config.ts` has providers + callbacks only. `auth.ts` imports `auth.config.ts`, adds the adapter, and exports the runtime objects. Middleware imports from `auth.config.ts` (or from a thin Edge-safe shim).
+
+## 33. `'use server'` anywhere
+
+Listed again because it matters. Grep `src/` for `'use server'` before reporting "done" — any hit is a bug.

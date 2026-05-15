@@ -1,6 +1,6 @@
 # claude-skills
 
-The [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) skills I ([Dennis Rongo](https://github.com/dennisrongo)) use every day — not shelfware, not theory. Each one earns its place by surviving real work: shipping .NET APIs and Next.js frontends, reviewing PRs, debugging production, and keeping commits clean.
+The [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) skills I ([Dennis Rongo](https://github.com/dennisrongo)) use every day — not shelfware, not theory. Each one earns its place by surviving real work: shipping features, reviewing PRs, debugging production, designing architecture, and keeping commits clean.
 
 They're small, composable, and meant to be tuned. Install the ones you want, edit them in-place, send a PR if yours sharpens mine.
 
@@ -92,13 +92,14 @@ node bin/claude-skills.js list
 
 | Skill | What it does |
 |---|---|
+| [`code-review`](./skills/code-review/SKILL.md) | Production-readiness review of **uncommitted** working-tree changes (staged + unstaged). Hunts DRY violations, dead code, leaky abstractions, premature abstraction, magic values, missing error handling, debug residue, missing migrations / flags / logs, and other common best-practice gaps — prioritized correctness → DRY/design → tests → security → performance → production-readiness → readability. Auto-detects and runs the project's tests and build (`npm`, `pytest`, `dotnet`, `go`, `cargo`, `Makefile`, monorepo orchestrators) and gates the verdict on them being green. **Never edits code unprompted** — produces a categorized report (`blocking` / `suggestion` / `nit` / `praise`) with `file:line` citations, then asks per-finding before fixing. Distinct from [`pr-review`](./skills/pr-review/SKILL.md), which scopes to committed branch work. Triggers on "code review", "review the diff", "is this production ready", "DRY check", or `/code-review`. |
 | [`conventional-commits`](./skills/conventional-commits/SKILL.md) | Write git commit messages that follow the [Conventional Commits](https://www.conventionalcommits.org/) spec (`feat`, `fix`, `chore`, `docs`, …), auto-prefixed with the ticket number from the current branch (e.g. `feature/12345-...` → `#12345`) and a project tag (`API` / `CLIENT` / `CONSOLE` / `DB`) when detectable from the diff. Both prefixes are omitted when they don't apply. Triggers on commit-message requests. |
 | [`diagnose`](./skills/diagnose/SKILL.md) | Disciplined diagnosis loop for hard bugs and performance regressions — reproduce → minimise → hypothesise → instrument → fix → regression-test. Forces a fast, deterministic feedback loop before any guessing, generates 3–5 ranked falsifiable hypotheses, uses tagged `[DEBUG-...]` instrumentation that's trivially cleaned up, and ends with a post-mortem on what would have prevented the bug. Triggers on "diagnose this" / "debug this" / bug reports / flaky tests / perf regressions. |
 | [`dotnet-onion-api`](./skills/dotnet-onion-api/SKILL.md) | Scaffold a new .NET solution (Web API + Worker microservices) using ONION architecture and EF Core, codifying battle-tested layered patterns and explicitly removing common legacy pitfalls (sproc-centric repos with reflection, EF6 on netstandard2.1, polling console workers, mutable base-service state, missing `CancellationToken`). Three modes — full solution scaffold, add-a-feature slice, add-a-worker microservice. Resolves TFM and NuGet versions at scaffold time (not hard-coded). |
 | [`grill-with-docs`](./skills/grill-with-docs/SKILL.md) | Interview-driven design review. Stress-tests a plan, RFC, or feature idea against the project's existing domain model and documented decisions — one question at a time with `AskUserQuestion`, sharpening fuzzy terminology and surfacing contradictions with the codebase. Updates `CONTEXT.md` (glossary) inline as terms resolve and writes ADRs to `docs/adr/` only when the decision is hard to reverse, non-obvious, and had real trade-offs. Writes no production code — composes with [`plan-and-build`](./skills/plan-and-build/SKILL.md) for the implementation handoff. Triggers on "grill me", "stress-test this plan", "challenge this design", "/grill-with-docs", or a pasted RFC. |
 | [`handoff`](./skills/handoff/SKILL.md) | Capture a session hand-off before context runs out — writes a dated `.claude/handoffs/*.md` (objective, progress, decisions, files, open issues, ready-to-paste next-session prompt) plus a lightweight memory pointer so a fresh Claude session can resume cleanly. |
 | [`improve-codebase-architecture`](./skills/improve-codebase-architecture/SKILL.md) | Surface architectural friction and propose **deepening opportunities** — refactors that collapse clusters of shallow modules into one deep module with a real seam. Walks the codebase with an Explore sub-agent, applies the **deletion test** to suspected pass-throughs, presents numbered candidates (files / problem / solution / benefits) using `CONTEXT.md` for the domain and a strict architecture glossary (module / interface / seam / depth / leverage / locality) for the structure, then drops into a grilling loop with optional parallel sub-agent interface design ("Design It Twice"). Updates `CONTEXT.md` inline as new concepts get named and offers an ADR only when a rejection is load-bearing. Composes with [`grill-with-docs`](./skills/grill-with-docs/SKILL.md) for glossary + ADR discipline and [`plan-and-build`](./skills/plan-and-build/SKILL.md) for the implementation handoff. Writes no production code. Triggers on "improve architecture", "architecture review", "find refactoring / deepening opportunities", "find shallow modules", "make this more testable", or `/improve-codebase-architecture`. |
-| [`nextjs-app-router`](./skills/nextjs-app-router/SKILL.md) | Scaffold a new Next.js (App Router) frontend with TypeScript, Redux Toolkit + RTK Query, Tailwind + shadcn/ui (Radix), and React Hook Form + Zod. Codifies route-group auth boundaries, a single injected RTK Query API, schema-driven forms with introspected defaults, server-side `middleware.ts`, and Vitest + Playwright + CI defaults — while forbidding common pitfalls (`'use client'` on root pages, `router.push` in `useEffect`, `serializableCheck: false`, `@ts-ignore`, mixed `moment`/`date-fns`, `styled-components` alongside Tailwind, case-sensitive folder dupes, `dangerouslySetInnerHTML` without sanitization, tokens outside `httpOnly` cookies). Three modes — full project scaffold, add-a-feature slice, add-an-API-slice. Resolves package versions at scaffold time (not hard-coded). |
+| [`nextjs-app-router`](./skills/nextjs-app-router/SKILL.md) | Scaffold a new Next.js (App Router) **fullstack** app — TypeScript, **NextAuth (Auth.js v5)**, **Prisma + PostgreSQL**, Route Handlers as the backend, Redux Toolkit + RTK Query, Tailwind + shadcn/ui (Radix), React Hook Form + Zod. **API-driven by deliberate choice**: pages are `'use client'`, all data flows UI → RTK Query → `/api/**` Route Handlers → Prisma. No `fetch()` in server components, no Server Actions, no async `page.tsx`. Confirms the database (Postgres + Prisma) and NextAuth providers with the user before writing files. Forbids the usual pitfalls (custom JWT cookies alongside NextAuth, multiple `createApi`/`PrismaClient` instances, `serializableCheck: false`, `@ts-ignore`, mixed `moment`/`date-fns`, `styled-components` alongside Tailwind, case-sensitive folder dupes, `dangerouslySetInnerHTML` without sanitization, Route Handlers that skip `requireSession()` or trust client-sent user IDs, `prisma db push` in CI). Three modes — full project scaffold, add-a-feature slice (page + form + Route Handler + Zod schema + RTK Query endpoints + Prisma model), add-an-API-slice. Resolves package versions at scaffold time (not hard-coded). |
 | [`plan-and-build`](./skills/plan-and-build/SKILL.md) | Plan-first feature builder. Grills the user about the feature (à la `grill-with-docs`) until the design is unambiguous, detects the project's stack and conventions, presents a plan, and gates on `ExitPlanMode` approval before writing any code. Builds TDD-first with NUnit when a .NET API changes — appending to the matching test class if one already exists rather than forking a parallel one — reuses existing patterns, keeps comments minimal, and generates EF Core / migration files **without ever** running `dotnet ef database update` or any DDL/SQL against the user's database. Triggers on "build/add/implement a feature", "/plan-and-build", or a pasted feature spec. |
 | [`pr-review`](./skills/pr-review/SKILL.md) | Conduct a structured PR / diff review prioritized correctness → design → tests → security → performance → readability, with categorized feedback (`blocking` / `suggestion` / `question` / `nit` / `praise`). |
 | [`tauri-2-app`](./skills/tauri-2-app/SKILL.md) | Scaffold a new Tauri 2 desktop app (Rust backend + TypeScript/React frontend) using a thin-frontend / rich-Rust-backend architecture with modular `commands/`, `state/`, `storage/`, `platform/` traits, `error/` macros, single-instance + updater plugins wired correctly, capability JSON per window, encrypted secrets at rest, `spawn_blocking` for sync work, and typed frontend command hooks — while forbidding common pitfalls (committed `.backup`/`.orig`/`.temp` files, plaintext API keys in `settings.json`, tokens in `localStorage`, `cfg!(target_os)` in command bodies instead of trait-based platform code, hand-rolled date math instead of `chrono`, raw `std::fs` bypassing capability checks, blocking I/O inside async commands, missing `windows_subsystem = "windows"` in `main.rs`, `devtools: true` in release, hardcoded bundle identifiers / updater pubkeys / CDN URLs). Three modes — full project scaffold, add-a-command end-to-end, add-a-Rust-module slice. Resolves Cargo + npm versions at scaffold time (not hard-coded). |
@@ -136,11 +137,26 @@ This CLI just copies skill folders to one of those locations. Nothing magic.
 
 ## Adding your own skills
 
+This library ships with a [`write-a-skill`](./skills/write-a-skill/SKILL.md) skill that scaffolds new ones for you — that's the intended path. Don't hand-edit `SKILL.md` from scratch; the skill knows the structure, writes a trigger-rich description (the part Claude actually reads), and updates the README table for you.
+
+Install it once, globally, from npm — no clone needed to use it:
+
+```bash
+npx @dennisrongo/skills install write-a-skill
+```
+
+From there:
+
+- **For a project skill or a global skill on your machine** — `cd` to the project (or anywhere), open Claude Code, and say `/write-a-skill`. It interviews you, picks the right location (`./.claude/skills/` for a project skill, `~/.claude/skills/` for a global one), and drops the new `SKILL.md`. Done.
+- **To contribute a skill back to this library** — you do need a working tree to commit. Clone the repo, `cd` in, open Claude Code, and say `/write-a-skill`. It detects the library repo, writes to `skills/<name>/SKILL.md`, and adds the row to the table above. Commit and push to `main`; on any machine `npx --yes github:dennisrongo/claude-skills install <your-skill-name>` picks it up.
+
+### The directory shape
+
 The library lives in [`skills/`](./skills). Each skill is a directory containing a `SKILL.md` with YAML frontmatter.
 
 ```
 skills/
-├── _template/              # not installed (leading underscore skips it)
+├── _template/              # starting point — the leading underscore skips it from install
 │   └── SKILL.md
 ├── conventional-commits/
 │   └── SKILL.md
@@ -150,7 +166,9 @@ skills/
     └── scripts/            # optional executable helpers
 ```
 
-### Minimal `SKILL.md`
+### If you'd rather do it by hand
+
+Copy `skills/_template/` to `skills/<your-skill-name>/`, edit the `SKILL.md`, and add a row to the skills table above. Minimum viable file:
 
 ```markdown
 ---
@@ -163,15 +181,7 @@ description: One sentence describing what it does AND when to trigger it. Be spe
 Instructions for Claude...
 ```
 
-The `description` is the most important field — it's what Claude reads to decide whether to consult the skill. Be explicit about trigger conditions; under-triggering is the more common failure mode.
-
-To add a new skill:
-
-1. Clone the repo: `git clone https://github.com/dennisrongo/claude-skills.git`
-2. Copy `skills/_template/` to `skills/<your-skill-name>/`
-3. Edit `SKILL.md`
-4. Commit and push to `main`
-5. On any machine: `npx github:dennisrongo/claude-skills install <your-skill-name>` — picks up the new skill immediately, no publishing step needed
+The `description` is the single highest-leverage field — it's the only thing Claude reads when deciding whether to consult the skill. Be explicit about trigger conditions; under-triggering is the more common failure mode. (This is the part [`write-a-skill`](./skills/write-a-skill/SKILL.md) is opinionated about — using it will save you from the rookie mistake of writing "Helps with X.")
 
 > Tip: `npx` caches the package per version spec. If you push an update to `main` and the next `npx github:dennisrongo/claude-skills ...` call doesn't seem to pick it up, run `npx --yes ...` to force a refresh, or clear the cache with `npx clear-npx-cache`.
 

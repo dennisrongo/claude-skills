@@ -19,12 +19,26 @@ Resolve **every** version via context7 at scaffold time. Versions below are plac
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio",
+    "db:seed": "tsx prisma/seed.ts",
     "prepare": "husky"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "next": "^x.y.z",
     "react": "^x.y.z",
     "react-dom": "^x.y.z",
+
+    "next-auth": "^x.y.z",
+    "@auth/prisma-adapter": "^x.y.z",
+    "bcryptjs": "^x.y.z",
+
+    "@prisma/client": "^x.y.z",
 
     "@reduxjs/toolkit": "^x.y.z",
     "react-redux": "^x.y.z",
@@ -54,6 +68,10 @@ Resolve **every** version via context7 at scaffold time. Versions below are plac
     "@types/node": "^x.y.z",
     "@types/react": "^x.y.z",
     "@types/react-dom": "^x.y.z",
+    "@types/bcryptjs": "^x.y.z",
+
+    "prisma": "^x.y.z",
+    "tsx": "^x.y.z",
 
     "tailwindcss": "^x.y.z",
     "postcss": "^x.y.z",
@@ -81,19 +99,31 @@ Resolve **every** version via context7 at scaffold time. Versions below are plac
   },
   "lint-staged": {
     "*.{ts,tsx}": ["prettier --write", "eslint --fix"],
-    "*.{json,md,css,yml,yaml}": ["prettier --write"]
+    "*.{json,md,css,yml,yaml,prisma}": ["prettier --write"]
   }
 }
 ```
 
-**Do NOT include:**
-- `moment` (use `date-fns`)
-- `styled-components` / `@emotion/*` (project is Tailwind-only)
-- `nprogress` (use `next-nprogress-bar`)
-- A `proxy` library at the application layer (use Next.js `rewrites()` in `next.config.ts`)
+## Notes on version resolution
 
-**Add only if the user opted in during Step 2:**
+- **`next-auth`**: Auth.js v5 (the version with the `handlers`/`auth`/`signIn`/`signOut` exports). Check context7 for the current version line — at certain points this is published under a `@beta` tag. Quote the resolved version back to the user before installing.
+- **`bcryptjs` vs `bcrypt` vs `@node-rs/argon2`**: pure-JS `bcryptjs` is the safest default — it works on every Node version and in serverless without native bindings. Switch to `@node-rs/argon2` only if the user explicitly asks for Argon2 and confirms their deploy target supports native bindings.
+- **`tsx`** is for running `prisma/seed.ts` and any TypeScript scripts without a build step.
+
+## Do NOT include
+
+- `moment` (use `date-fns`)
+- `styled-components` / `@emotion/*` (Tailwind only)
+- `nprogress` (use `next-nprogress-bar`)
+- `jsonwebtoken` or `jose` for the application layer — NextAuth handles JWT signing/verification internally
+- `js-cookie` — NextAuth manages the session cookie
+- A second auth library (`Clerk`, `Lucia`, `Iron Session`, etc.) alongside NextAuth
+- A second ORM (`Drizzle`, `Kysely`, `TypeORM`) alongside Prisma
+
+## Add only if the user opted in during Step 2
+
 - `pusher-js` (real-time)
 - Storybook packages
 - `next-intl` / `next-i18next` (i18n)
 - `@sentry/nextjs` (error tracking)
+- `@auth/core` providers not in the default install (e.g. specific OAuth providers shipped separately)
