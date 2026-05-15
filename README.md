@@ -1,0 +1,121 @@
+# claude-skills
+
+A curated, fine-tunable library of [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) skills. Install globally or per-project with one command.
+
+> Skills are reusable bundles of instructions that Claude consults when relevant. This repo is a personal/team library of them — grow it over time, tune the ones that misfire, and install the set you want on any machine.
+
+## Quick start
+
+```bash
+# See what's in the library
+npx claude-skills list
+
+# Interactive picker (recommended first time)
+npx claude-skills install
+
+# Install specific skills globally (~/.claude/skills)
+npx claude-skills install conventional-commits pr-review
+
+# Install everything into the current project (./.claude/skills)
+npx claude-skills install --all --project
+```
+
+No clone, no global install required — `npx` fetches and runs it from npm. (You can also clone the repo and run `node bin/claude-skills.js ...` directly.)
+
+## How Claude Code finds these skills
+
+Claude Code looks for `SKILL.md` files in:
+
+- `~/.claude/skills/<skill>/SKILL.md` — available in every session (global)
+- `<project>/.claude/skills/<skill>/SKILL.md` — available only inside that project
+
+This CLI just copies skill folders to one of those locations. Nothing magic.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `claude-skills list` | List skills available in the library, marking which are installed |
+| `claude-skills installed` | List skills currently installed |
+| `claude-skills install` | Interactive multi-select picker |
+| `claude-skills install <name>...` | Install one or more skills by name |
+| `claude-skills install --all` | Install every skill in the library |
+| `claude-skills remove <name>...` | Remove installed skill(s) |
+| `claude-skills remove --all` | Remove every installed skill |
+
+## Flags
+
+- `-g, --global` — target `~/.claude/skills` (default)
+- `-p, --project` — target `./.claude/skills`
+- `-f, --force` — overwrite if already installed (interactive install always overwrites selected items)
+- `-h, --help` / `-v, --version`
+
+## Adding your own skills
+
+The library lives in [`skills/`](./skills). Each skill is a directory containing a `SKILL.md` with YAML frontmatter.
+
+```
+skills/
+├── _template/              # not installed (leading underscore skips it)
+│   └── SKILL.md
+├── conventional-commits/
+│   └── SKILL.md
+└── my-new-skill/
+    ├── SKILL.md
+    ├── references/         # optional supporting files
+    └── scripts/            # optional executable helpers
+```
+
+### Minimal `SKILL.md`
+
+```markdown
+---
+name: my-skill-name
+description: One sentence describing what it does AND when to trigger it. Be specific about phrases the user might use.
+---
+
+# My Skill Name
+
+Instructions for Claude...
+```
+
+The `description` is the most important field — it's what Claude reads to decide whether to consult the skill. Be explicit about trigger conditions; under-triggering is the more common failure mode.
+
+To add a new skill:
+
+1. Copy `skills/_template/` to `skills/<your-skill-name>/`
+2. Edit `SKILL.md`
+3. Commit and push
+4. `npx claude-skills install <your-skill-name>` — installs from the bundled package
+5. Or, for the absolute latest: `npx github:YOUR_USERNAME/claude-skills install <your-skill-name>`
+
+## Fine-tuning skills you've installed
+
+Two patterns:
+
+**Tune in-place, then upstream:**
+Edit the file at `~/.claude/skills/<name>/SKILL.md` directly while you're iterating with Claude. Once it feels right, copy the edits back into this repo's `skills/<name>/SKILL.md` and commit.
+
+**Tune in the repo, reinstall:**
+Edit `skills/<name>/SKILL.md` in your clone, then run `npx claude-skills install <name> --force` to push it to your install location.
+
+## Versioning
+
+- `0.x` — the library is shaping up; expect skills to be added, renamed, and rewritten.
+- Pin a specific version with `npx claude-skills@0.1.0 install ...` if you need reproducibility.
+
+## Publishing
+
+Once you've cloned and set this up under your own GitHub account:
+
+```bash
+# Update the "repository" field in package.json
+# Then publish to npm:
+npm publish --access public
+```
+
+After publishing, anyone can install with `npx claude-skills`. Before publishing, users can still run it via `npx github:YOUR_USERNAME/claude-skills`.
+
+## License
+
+MIT
