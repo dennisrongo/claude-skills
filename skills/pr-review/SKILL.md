@@ -7,6 +7,13 @@ description: Conduct a thorough, structured code review of a local branch, group
 
 A structured approach to reviewing local branch work that catches real issues without nitpicking style. Reviews are scoped per task (e.g. `#123`) so each unit of work gets its own verdict.
 
+## Contract
+
+**Inputs:** Current local branch (diffed against `origin/develop` or repo default); commit messages tagged with `#NNN`.
+**Outputs:** Per-task verdict (Approve / Request changes / Comment) grouped by `#NNN`, with findings categorized `blocking` / `suggestion` / `question` / `nit` / `praise` and `file:line` citations. Council never crosses task boundaries — each task gets its own verdict.
+**Invokes:** `(none)`
+**Invoked by:** User phrases — "review my PR", "review the diff", "review my branch", "review my changes", "/pr-review".
+
 ## Assumptions
 
 - Work happens on a feature branch off `develop` (git-flow style). If a repo uses a different base, substitute accordingly.

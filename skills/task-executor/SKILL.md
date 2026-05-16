@@ -7,6 +7,13 @@ description: Disciplined execution loop for a single defined task — Understand
 
 A discipline for working on a single, already-defined task. The task is given; the goal is to execute it without skipping context, without batching changes, and without losing the thread mid-way. Every turn emits the same six sections so the user (and any future session) can pick up the state at a glance.
 
+## Contract
+
+**Inputs:** Single, already-defined task description (ticket / bullet / paragraph spec); current repo + existing patterns / sibling test classes / wiring points.
+**Outputs:** Per-turn six-section status block (Goal / Current understanding / Files to inspect / Plan / Progress / Risks / Assumptions); incremental edits, each followed by a validation step (test, build, type-check, curl) before the next checkbox ticks. Plan Mode gates code writes via `ExitPlanMode`.
+**Invokes:** `(none)`
+**Invoked by:** User phrases — "/task-executor", "Work on task: <description>", "task-executor", a concrete already-defined task handed off for execution; receives downward handoffs from `plan-and-build` once a plan is approved.
+
 ## When to use this skill
 
 - The user runs `/task-executor` or types "task-executor".

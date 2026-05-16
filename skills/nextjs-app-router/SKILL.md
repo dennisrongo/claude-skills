@@ -14,6 +14,13 @@ Generate a production-grade Next.js fullstack app where:
 
 The skill **forbids** the patterns it used to allow in an earlier frontend-only revision: server-side data fetching, `redirect()` from server pages, custom `httpOnly` JWT cookies, multi-`createApi` setups, and ad-hoc auth slices that duplicate NextAuth state.
 
+## Contract
+
+**Inputs:** Mode (full project scaffold / feature slice / RTK Query slice) + feature description; pre-confirmed DB choice (Postgres + Prisma) and NextAuth providers; resolved package versions (looked up at scaffold time).
+**Outputs:** New Next.js App Router project OR a feature slice (route + Route Handlers + RTK Query endpoints + Zod schema + form) OR an RTK Query API slice for an existing domain. Follows the codified patterns; forbids the listed pitfalls.
+**Invokes:** `(none)`
+**Invoked by:** User phrases — "create a new Next.js project", "Next.js + NextAuth", "RTK Query Next.js app", "Next.js + Prisma project", "shadcn project", "my Next.js conventions"; called by `plan-and-build` when stack matches.
+
 ## When to use this skill
 
 Trigger on any of:
