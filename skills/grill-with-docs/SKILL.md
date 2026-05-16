@@ -7,6 +7,13 @@ description: Interview-driven design review. Stress-tests a plan, idea, RFC, or 
 
 A pre-implementation design review. Sit across the table from the user, ask one sharp question at a time, cross-reference the answers against the codebase and the project's documented decisions, and update the canonical docs in-flight as terms harden. The output is a sharper plan and tightened documentation — not code.
 
+## Contract
+
+**Inputs:** Plan / RFC / feature description from the user; existing `CONTEXT.md`, `CONTEXT-MAP.md`, `docs/adr/`, `CLAUDE.md`, `README.md`, `ARCHITECTURE.md` if present.
+**Outputs:** Glossary entries written inline to `CONTEXT.md` as terms resolve; optional ADRs in `docs/adr/NNNN-*.md` (only when the decision is hard-to-reverse, non-obvious, and had real trade-offs); closing summary with resolved terminology and open questions. **No production code.**
+**Invokes:** `(none)`
+**Invoked by:** User phrases — "grill me", "stress-test this plan", "challenge this design", "validate against the domain", "sharpen the terminology", "/grill-with-docs", a pasted RFC; called by `plan-and-build` Phase 1 and `improve-codebase-architecture` grilling loop.
+
 ## When to use this skill
 
 Trigger on any of:

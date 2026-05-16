@@ -7,6 +7,13 @@ description: Produce a durable onboarding artifact for a codebase — writes `ON
 
 Produce a durable onboarding artifact — the document past-you wishes you'd written before stepping away from this repo for six months. Not a chat answer that disappears: a committed `ONBOARDING.md` with a tight "read this first" list, system overview, dependency map, startup flow, auth flow, and the important files. Every claim cited with `file:line`.
 
+## Contract
+
+**Inputs:** User trigger phrase + current repo state (manifests, entry points, existing onboarding docs).
+**Outputs:** `ONBOARDING.md` (or `docs/ONBOARDING.md` when `docs/` exists) covering read-this-first, system overview, startup flow, auth flow, dependency map, important files — every claim cited `file:line`. Condensed summary rendered inline.
+**Invokes:** `(none)`. Suggests follow-ups to `improve-codebase-architecture`, `grill-with-docs`, `handoff`.
+**Invoked by:** User phrases — "explain this codebase", "onboard me", "give me a tour", "where do I start", "I haven't looked at this in months", "/codebase-explainer".
+
 ## When to use this skill
 
 - "explain this codebase" / "explain the codebase" / "what does this repo do"

@@ -7,6 +7,13 @@ description: Production-readiness code review of **uncommitted** working-tree ch
 
 Review the uncommitted changes in the working tree against DRY and common software-engineering best practices, verify the project still builds and its tests still pass, and surface findings as recommendations the user can act on — **without editing code unprompted**.
 
+## Contract
+
+**Inputs:** User trigger phrase + current working tree (`git diff` staged + unstaged).
+**Outputs:** Findings categorized `blocking` / `suggestion` / `nit` / `praise` with `file:line` citations; test + build verification status; recommendation report — never edits without explicit per-finding approval.
+**Invokes:** `conventional-commits` for any post-fix commit message.
+**Invoked by:** User phrases — "code review", "review my code", "review the diff", "is this production ready", "DRY check", "/code-review".
+
 ## When to use this skill
 
 - "code review" / "review my code" / "review the diff"

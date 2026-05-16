@@ -7,6 +7,13 @@ description: Pre-launch operational-readiness checklist for a feature, release, 
 
 The operational gate I run before calling something done. Code review tells me the diff is clean; `ship-it` tells me the thing won't page me at 3am.
 
+## Contract
+
+**Inputs:** Named scope (PR / branch / feature flag / release tag / module). Scope is forced before auditing — bare invocations get one `AskUserQuestion`.
+**Outputs:** Structured report grouping findings as **Blocking** / **Should-fix** / **N/A with reason** / **Passing** across the 10 fixed categories; every PASS backed by `file:line`; every GAP labelled `no evidence found at <path>`; every N/A justified in one line. Never edits unprompted.
+**Invokes:** `(none)`
+**Invoked by:** User phrases — "is this ready to ship?", "ship-it check", "production checklist", "pre-launch checklist", "release readiness", "launch checklist", "/ship-it"; pairs with `code-review` (diff quality first, then operational gate).
+
 ## When to use this skill
 
 - "is this ready to ship?" / "ship-it check" / "/ship-it"

@@ -9,6 +9,13 @@ A discipline for hard bugs. Skip phases only when explicitly justified.
 
 When exploring the codebase, use the project's domain glossary to get a clear mental model of the relevant modules, and check ADRs in the area you're touching.
 
+## Contract
+
+**Inputs:** Bug symptom / failing test / performance regression description; current repo state, recent commits, stack traces / error logs when provided.
+**Outputs:** A reproduction loop (deterministic pass/fail signal), ranked hypotheses with `file:line` evidence, instrumentation tagged `[DEBUG-…]`, the fix, a regression test, and a one-line post-mortem note.
+**Invokes:** `(none)`
+**Invoked by:** User phrases — "diagnose this", "debug this", bug reports, "broken / failing / flaky / hanging / leaking", performance-regression descriptions, "/diagnose".
+
 ## When to use this skill
 
 - The user runs `/diagnose` or types "diagnose this" / "debug this".

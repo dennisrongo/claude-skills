@@ -7,6 +7,13 @@ description: Scaffold a new Tauri 2 desktop app (Rust backend + TypeScript/React
 
 Generate a production-grade Tauri 2 desktop app that keeps the **good** patterns from a battle-tested codebase (thin TS frontend that only invokes commands, rich Rust backend with modular `commands/`, `state/`, `storage/`, `platform/`, `error/`, plugin-based features wired in `lib.rs`, capability JSON per window, encrypted secrets at rest, single-instance enforcement, updater wired to a self-hosted JSON manifest, cross-platform CI matrix, target-specific Cargo dependencies, release-profile LTO, typed frontend command hooks) and eliminates the **bad** ones often seen in Tauri codebases (committed `.backup` / `.orig` / `.temp` files in `src-tauri/src/`, API keys in plaintext settings JSON, tokens in `localStorage`, `cfg!(target_os)` scattered through command bodies instead of trait-based platform code, hand-rolled date math instead of `chrono::Utc::now()`, raw `std::fs` reads/writes that bypass Tauri's capability checks, blocking I/O inside `#[tauri::command]` without `tokio::task::spawn_blocking`, missing `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]` in `main.rs` causing a console flash on Windows, multi-instance apps without `tauri-plugin-single-instance`, `devtools: true` in release config, generic catch-all `String` errors with no `thiserror` enum at module boundaries, hardcoded company-specific bundle identifiers / R2 URLs / updater pubkeys / signing identities baked into the skill).
 
+## Contract
+
+**Inputs:** Mode (full project scaffold / Tauri command slice / Rust module slice) + feature description; resolved Cargo + npm versions (looked up at scaffold time).
+**Outputs:** New Tauri 2 project OR a command slice (Rust command + capability JSON + typed frontend hook) OR a Rust module slice (state + storage + tests). Follows the codified patterns; forbids the listed pitfalls.
+**Invokes:** `(none)`
+**Invoked by:** User phrases — "create a new Tauri app", "scaffold a Tauri 2 project", "new desktop app with Tauri", "Tauri + React project", "add a Tauri command end-to-end", "add a Rust module", "my Tauri conventions"; called by `plan-and-build` when stack matches.
+
 ## When to use this skill
 
 Trigger on any of:

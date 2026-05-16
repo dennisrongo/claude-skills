@@ -7,6 +7,13 @@ description: Surface architectural friction in a codebase and propose **deepenin
 
 Surface architectural friction and propose **deepening opportunities** — refactors that turn shallow modules into deep ones. The aim is testability and AI-navigability. This skill is _informed_ by the project's domain model: the domain language in `CONTEXT.md` gives names to good seams; the ADRs in `docs/adr/` record decisions the skill should not re-litigate.
 
+## Contract
+
+**Inputs:** User trigger phrase + current codebase + `CONTEXT.md` / `docs/adr/` if present.
+**Outputs:** Numbered list of deepening candidates (files / problem / solution / benefits); inline `CONTEXT.md` updates as new concepts get named; optional ADR when a rejection is load-bearing. **No production code.**
+**Invokes:** `grill-with-docs` (during the grilling loop on the picked candidate); hands off to `plan-and-build` for implementation.
+**Invoked by:** User phrases — "improve architecture", "architecture review", "find refactoring / deepening opportunities", "find shallow modules", "make this more testable", "/improve-codebase-architecture"; often follows `codebase-explainer`.
+
 ## When to use this skill
 
 Trigger on any of:

@@ -7,6 +7,13 @@ description: Plan-first feature builder. Grills the user about the feature until
 
 Build a feature the way a careful senior engineer would: understand it first, design it against the existing codebase, get explicit sign-off on the plan, then implement it by reusing what's already there. Never start writing code on a fuzzy spec.
 
+## Contract
+
+**Inputs:** Feature spec or fuzzy description from user; current stack + existing patterns (entity / service / controller / migration templates).
+**Outputs:** Approved plan (via `ExitPlanMode`); implementation across multiple files; tests (TDD-first when a .NET API changes); migration files written but never executed.
+**Invokes:** `grill-with-docs` during Phase 1; `conventional-commits` for commit messages; the matching scaffolder (`dotnet-onion-api` / `nextjs-app-router` / `tauri-2-app`) when the stack matches; `task-executor` may receive execution handoff for large plans.
+**Invoked by:** User phrases — "build a feature", "add a feature", "implement this feature", "/plan-and-build", a pasted feature spec; often follows `grill-with-docs` or `improve-codebase-architecture`.
+
 ## When to use this skill
 
 Trigger on any of:

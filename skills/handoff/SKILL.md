@@ -7,6 +7,13 @@ description: Capture a session hand-off so work can resume cleanly in a new Clau
 
 Preserve everything the next Claude session needs to pick up where this one left off. The hand-off is a real artifact (a Markdown file in the repo) plus a small memory pointer so future sessions auto-discover it.
 
+## Contract
+
+**Inputs:** User trigger phrase + current conversation state + repo state (`git status`, `git diff --stat`).
+**Outputs:** `.claude/handoffs/<YYYY-MM-DD>-<slug>.md` with six fixed sections (Objective, Progress, Decisions, Important Files, Open Issues, Next Session Prompt); a project-memory pointer indexed in `MEMORY.md`; chat summary with the Next Session Prompt quoted verbatim.
+**Invokes:** `(none)`
+**Invoked by:** User phrases — "/handoff", "hand off", "save context", "preserve context", "running out of context", "wrap up for next session", "before we lose context".
+
 ## When to use this skill
 
 - The user runs `/handoff` or types "handoff" / "hand off".

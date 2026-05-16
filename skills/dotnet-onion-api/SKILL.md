@@ -7,6 +7,13 @@ description: Scaffold a new .NET solution (Web API + Worker microservices) using
 
 Generate a production-grade .NET solution that keeps the **good** layered patterns (Api → Application → Infrastructure → Domain separation, base classes for cross-cutting concerns, extension-method wiring in `Program.cs`, JWT, AutoMapper, auto-DI, unified error responses) and eliminates the **bad** ones often seen in legacy .NET codebases (stored-procedure-centric reflection repositories, EF6 on netstandard2.1, polling console-app workers, swallowed exceptions, mutable per-request state on base service classes, mixed ADO/Dapper/EF6 data access, missing `CancellationToken` plumbing).
 
+## Contract
+
+**Inputs:** Mode (full solution scaffold / feature slice / worker microservice) + feature description; resolved TFM and NuGet versions (looked up at scaffold time, not hard-coded).
+**Outputs:** New .NET solution OR a feature slice through Api → Application → Infrastructure → Domain layers OR a `BackgroundService` worker microservice — all following ONION conventions.
+**Invokes:** `(none)`
+**Invoked by:** User phrases — "create a new dotnet project", "scaffold a .NET API", "new C# solution", "add a worker microservice", "add a feature end-to-end", "ONION / Clean Architecture / Onion Architecture"; called by `plan-and-build` when stack matches.
+
 ## When to use this skill
 
 Trigger on any of:

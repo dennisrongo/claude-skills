@@ -7,6 +7,13 @@ description: Create a new Claude Code skill — scaffolds a properly-structured 
 
 Author a new Claude Code skill that Claude will actually trigger when it should. The description field is the **only** thing Claude sees when deciding whether to load the skill, so most of the effort goes into making that field specific and trigger-rich — not into the body.
 
+## Contract
+
+**Inputs:** User request for a new skill, target location (library / project / global), trigger phrases, optional source URL to adapt from.
+**Outputs:** New `SKILL.md` (and optional `scripts/`, `references/`); README skills-table row when targeting this library.
+**Invokes:** `(none)`
+**Invoked by:** User phrases — "create a skill", "write a skill", "new skill", "add a skill", "/write-a-skill", a pasted SKILL.md URL with "one like this".
+
 ## When to use this skill
 
 - The user says any of: "create a skill", "write a skill", "new skill", "add a skill", "make a skill", "scaffold a skill", "/write-a-skill".
@@ -52,11 +59,21 @@ If you're in the library repo, prefer that destination — the user can install 
 ---
 name: <kebab-case-name>
 description: <see "Writing the description">
+# Optional visibility flags — see "Visibility flags" below for decision rules.
+# disable-model-invocation: true
+# user-invocable: false
 ---
 
 # <Title Case Name>
 
 <1–2 sentence elevator pitch — what this skill does and why it exists.>
+
+## Contract
+
+**Inputs:** <what the skill takes — user trigger phrase, target scope, args>
+**Outputs:** <what it produces — report sections, file writes, side effects>
+**Invokes:** <other skills this delegates to during its workflow, or `(none)`>
+**Invoked by:** <skills that hand off here, plus the user phrases in `When to use`>
 
 ## When to use this skill
 
@@ -71,6 +88,15 @@ description: <see "Writing the description">
 1. <Imperative step>
 2. <Imperative step>
 3. <Imperative step>
+
+When the workflow delegates to another skill, announce the call inline so the topology is legible:
+
+> Phase N — invoking `<skill-name>` with:
+>   <arg>: <value>
+
+On completion:
+
+> `<skill-name>` returned: <one-line summary>.
 
 ## Examples
 
@@ -115,6 +141,28 @@ The description is the **only** field Claude reads when deciding whether to cons
 
 The most common failure mode is **under-triggering** (Claude doesn't load the skill when it should). Err on the side of *more* trigger phrases — three is the floor, not the ceiling.
 
+## Visibility flags
+
+Two optional frontmatter keys control how Claude and users discover the skill. Default behavior — both flags absent — is "Claude can auto-invoke, user can run from `/menu`". Add a flag only when the default is wrong.
+
+### `disable-model-invocation: true`
+
+Set when the skill has **destructive external side effects** the user must consciously authorize each time. The image-prompt audit calls out three: **deploy**, **git commit**, **send messages** (Slack, email, webhooks). Anything that touches a system Claude can't easily undo qualifies.
+
+Decision rule (strict):
+
+- ✅ Set it when the skill executes `git commit` / `git push`, deploys an artifact, sends a message via an MCP server, or POSTs to a third party.
+- ❌ Don't set it just because the skill writes files. Local file writes are reversible (revert, undo). Setting this flag too aggressively nerfs auto-invocation and pushes the skill toward shelfware.
+
+### `user-invocable: false`
+
+Set on **service skills** — skills that exist only to be invoked by other skills, never by the user directly. Hides them from `/menu` so users don't trip over internal machinery (e.g. a shared lens-council or stack-detector).
+
+Decision rule:
+
+- ✅ Set it on service / utility skills whose value is composition, not standalone use (e.g. anything other skills `Invokes:`).
+- ❌ Don't set it on a normal user-facing skill, even an obscure one. If the user might ever type `/<name>`, leave the flag absent.
+
 ## When to add scripts or reference files
 
 Default to a single `SKILL.md`. Only escalate when:
@@ -132,6 +180,9 @@ Before showing the draft to the user:
 - [ ] `description:` starts with what the skill does, then "Use this skill whenever the user says …"
 - [ ] Description includes ≥ 3 concrete trigger phrases / commands
 - [ ] Description ends with "— even if they don't explicitly say …" escape hatch
+- [ ] `## Contract` section present with `Inputs / Outputs / Invokes / Invoked by`
+- [ ] Visibility flags applied per the decision rules — `disable-model-invocation: true` only for destructive external side effects; `user-invocable: false` only for service skills
+- [ ] If `Invokes:` is non-empty, the workflow announces each delegation with the `> Phase N — invoking <name>` format
 - [ ] `## When to use this skill` lists the same triggers as bullets (so the body reinforces the description)
 - [ ] Workflow steps are imperative and verifiable, not vibes ("Verify X exists", not "Be careful")
 - [ ] At least one concrete example

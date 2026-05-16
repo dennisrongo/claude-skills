@@ -7,6 +7,13 @@ description: Write git commit messages following the Conventional Commits specif
 
 Write commit messages that follow the [Conventional Commits](https://www.conventionalcommits.org/) spec, prefixed with the ticket number (from the current branch) and the project tag (`API` / `CLIENT` / `CONSOLE` / `DB`) when those can be determined.
 
+## Contract
+
+**Inputs:** Current branch name (for ticket extraction); staged diff via `git diff --cached --name-only` (fall back to unstaged) for project-tag detection.
+**Outputs:** A formatted commit message string — `[#<ticket>] [(<PROJECT>)] <type>: <description>` with optional body and breaking-change footer. Does **not** execute `git commit`.
+**Invokes:** `(none)`
+**Invoked by:** User phrases — "write a commit message", commit-help requests, `git commit`, changelog-entry requests; called by `code-review` and `plan-and-build` after edits.
+
 ## Format
 
 ```
