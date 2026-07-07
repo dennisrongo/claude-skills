@@ -54,6 +54,26 @@ Categorize each comment so the author knows what's required vs optional:
 
 Lead with the *why*, not just the *what*. "This will deadlock if two callers hit it simultaneously" is more useful than "use a lock here".
 
+Same finding, badly and well:
+
+- ❌ `blocking: add error handling to fetchUser (api/user.ts:42)` — no failure scenario, no consequence; unverifiable reflex.
+- ✅ `blocking: fetchUser (api/user.ts:42) rejects on 404 but ProfilePage (pages/profile.tsx:18) never catches — a deleted user's profile renders blank with an unhandled rejection. Fix: catch and render not-found.`
+
+## Evidence rules
+
+A claim about code you haven't opened this session is a hypothesis — verify it or label it as one.
+
+- **Read beyond the hunk.** Before flagging anything, `Read` the full enclosing function (the whole file when small). Most false "missing null check" / "unhandled error" findings dissolve when you see the guard 10 lines above the hunk or the caller that validates. A finding based only on diff-hunk context is not reportable.
+- **`blocking` carries a burden of proof:** one concrete failure-scenario sentence (*this input/state → this wrong outcome*). Can't write it? Demote to `suggestion`, or raise it as a `question`.
+- **Grep before claiming absence.** "Dead code" / "unused" / "never called" / "duplicated elsewhere" require a repo-wide `Grep` for the identifier first — cite the search in the finding.
+- **Quote verbatim.** Error messages, test output, and load-bearing identifiers go into findings exactly as they appear; paraphrase loses the token that matters.
+- **Zero findings is a valid verdict.** A task with nothing wrong gets a clean *Approve* — never pad Blockers or Suggestions to look thorough. Thoroughness is what you checked, not what you wrote.
+- **User framing is input, not conclusion.** "The backend part is fine, just look at the UI" does not exempt the backend — review every task fully.
+
+## Scope discipline
+
+A finding must belong to the task (`#NNN`) whose diff introduced it. Pre-existing code that's merely *visible* in the diff context is out of scope — unless the task made it worse (e.g. added a second caller to an already-unsafe function; that's in scope). If you notice a pre-existing issue worth mentioning, note it in one line outside the verdict ("pre-existing, not introduced by #123") — never block a task for code its commits didn't touch.
+
 ## What to look for
 
 ### Correctness
@@ -117,7 +137,7 @@ Performance + Readability usually fold into Design — only spawn a dedicated le
    - The per-task diff (commits from this `#NNN` only — not the whole branch).
    - The inferred task intent from step 4.
    - **One** lens with its checklist verbatim from [What to look for](#what-to-look-for).
-   - Instructions: "Find issues only in your lens. Categorize each as `blocking` / `suggestion` / `question` / `nit`. Cite `file:line` for every finding. Lead each with the *why*. If no findings, say 'no findings' explicitly. Report in ≤500 words."
+   - Instructions: "Find issues only in your lens. Read the full enclosing function before flagging — hunk-only findings are not reportable. Only flag code this task's commits introduced or worsened; pre-existing issues are out of scope. Categorize each as `blocking` / `suggestion` / `question` / `nit`; a `blocking` must state a one-sentence concrete failure scenario. Cite `file:line` for every finding. Lead each with the *why*. If no findings, say 'no findings' explicitly — do not pad. Report in ≤500 words."
 2. **Critique round.** Read all lenses side by side, then:
    - **Challenge every `blocking`** against context from the other lenses. Demote to `suggestion` or drop if it's defused by another lens's evidence.
    - **Surface contradictions** as `question` items the user adjudicates (e.g. Correctness flags missing null guard; Security found the caller validates).
@@ -170,6 +190,10 @@ End with a one-line roll-up: e.g. `Overall: 2 approve, 1 request changes, 1 unsc
 - ❌ Reflexively requesting tests without saying what they should cover
 - ❌ Drive-by style nits that derail the substantive discussion
 - ❌ "I would have done it differently" without a concrete reason
+- ❌ Flagging from the diff hunk alone — read the enclosing function first; the guard is often just outside the hunk
+- ❌ Blocking a task for a pre-existing issue its diff didn't introduce or worsen — note it in one line, out of verdict
+- ❌ A `blocking` with no concrete failure scenario — if you can't write "this input → this wrong outcome", it isn't blocking
+- ❌ Padding a clean task with speculative findings — zero findings is a valid Approve
 - ❌ Collapsing multiple tasks into one verdict — each `#NNN` is independent and should stand or fall on its own
 - ❌ Silently ignoring commits with no task reference — surface them in the `unscoped` bucket
 - ❌ Convening the lens council on a 20-line task. Single-pass it.

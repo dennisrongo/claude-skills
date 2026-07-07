@@ -70,6 +70,11 @@ Confirm:
 - [ ] The failure is reproducible across multiple runs (or, for non-deterministic bugs, reproducible at a high enough rate to debug against).
 - [ ] You have captured the exact symptom (error message, wrong output, slow timing) so later phases can verify the fix actually addresses it.
 
+**Quote error text verbatim — never paraphrase.** The load-bearing token is usually the exact column name, status code, or line number, and paraphrase loses it. The difference between what the error says and what you remember it saying is where diagnosis dies.
+
+- ❌ "some kind of null error in the billing code"
+- ✅ `NullReferenceException at BillingService.cs:84 in HandleSubscriptionEvent` — the `:84` is what distinguishes hypothesis 2 from hypothesis 4.
+
 Do not proceed until you reproduce the bug.
 
 ## Phase 3 — Hypothesise
@@ -81,6 +86,22 @@ Each hypothesis must be **falsifiable**: state the prediction it makes.
 > Format: "If <X> is the cause, then <changing Y> will make the bug disappear / <changing Z> will make it worse."
 
 If you cannot state the prediction, the hypothesis is a vibe — discard or sharpen it.
+
+**Evidence gate.** A claim about code you haven't opened this session is a hypothesis, not evidence. Cite `file:line` only for lines you actually read; "X is never called" only after you grepped for callers. Label everything else as unverified.
+
+### Mundane first
+
+Exotic hypotheses (framework bug, compiler bug, race condition) are almost always wrong. Before ranking any of them above a boring cause, eliminate the boring ones — each is a 30-second check:
+
+- **Is the code you're reading the code that's running?** Stale build artifact, uncompiled change, cached bundle, old container image. Add a marker log and confirm it appears in the output.
+- **Right branch, right env, right database?** Check `git branch`, the connection string, the env vars actually loaded.
+- **Did the input actually reach the function?** Log at the entry point before theorising about the logic inside.
+- **Typo / off-by-one / wrong variable** in the most recently changed lines (`git diff`).
+- **Config not loaded** — the setting exists but the process never read it.
+
+When the behavior makes no sense, you are looking at the wrong code, the wrong process, or the wrong environment — not at an exotic bug.
+
+**The user's diagnosis is hypothesis #1, not the conclusion.** If the user says "it's probably the cache layer" or "should be a quick fix", rank it, state its falsifiable prediction, and test it like the others. Never skip falsification because the user sounded sure — confident framing is not evidence.
 
 ### Decision gate: inline vs. hypothesis council
 
@@ -123,7 +144,13 @@ Tool preference:
 
 **Perf branch.** For performance regressions, logs are usually wrong. Instead: establish a baseline measurement (timing harness, `performance.now()`, profiler, query plan), then bisect. Measure first, fix second.
 
+**When a probe command fails:** read the full error output — don't skim it. Change exactly one thing based on what it says, retry once. Two failures on the same probe = stop and report; never retry verbatim, never proceed as if it ran, never report an observation you didn't see.
+
+**Stop-digging rule.** After ~3 probe cycles that neither confirm nor falsify the leading hypothesis, stop probing it. Go back to Phase 3 with the evidence gathered so far and re-rank — probes that keep coming back ambiguous usually mean the hypothesis is wrong, not that it needs one more probe. Tunneling on hypothesis #1 is the failure mode this rule breaks.
+
 ## Phase 5 — Fix + regression test
+
+**The accepted hypothesis must explain EVERY observed symptom.** A hypothesis that explains 2 of 3 symptoms is a different bug or an incomplete cause. Before writing the fix, walk the symptom list from Phase 2 and check each one off against the hypothesis — an unexplained symptom means back to Phase 3, not "probably unrelated".
 
 **Minimal comments.** Default to no comments in the fix or the regression test. Add one only when the *why* is non-obvious — a workaround for a specific upstream bug (with a link), a subtle invariant the code relies on, a domain rule that isn't visible from the names. Never write block headers, never restate *what* the next line does, never leave `// TODO` without an issue link. One short line max — no multi-line comment blocks. Names carry the *what*; comments earn their place only when they carry *why*.
 
@@ -157,6 +184,10 @@ Required before declaring done:
 
 - Jumping to a fix before building a feedback loop — you're guessing, not diagnosing.
 - A single hypothesis becomes "the cause" without falsification — anchoring.
+- Adopting the user's "it's probably X" as fact. It's hypothesis #1 — rank it and falsify it like the rest.
+- Ranking a race condition or framework bug above "stale build" before checking the boring causes.
+- Citing `file:line` for code never opened this session, or asserting "never called" without grepping.
+- Accepting a hypothesis that explains most symptoms. Most is not all; the remainder is a different bug or the real cause.
 - Running the hypothesis council for a one-line typo bug. Ceremony for its own sake. Inline 1–2 hypotheses is fine when the cause is staring at you.
 - Spawning defender sub-agents serially instead of in parallel — one message, N agents.
 - A defender that returns "could not find supporting evidence" gets ranked anyway. If the code doesn't back the hypothesis, drop it.

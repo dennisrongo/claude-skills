@@ -41,21 +41,25 @@ If an `ONBOARDING.md` already exists, this is **refresh mode**: read it first, t
 Spawn `subagent_type=Explore` calls in a **single message** so they run concurrently. Brief each agent self-containedly — it has no conversation context. Default fan-out:
 
 - **System overview** — what this project actually does, key domains, top-level modules, public-facing surfaces (HTTP routes / CLI commands / exported APIs).
-- **Dependency map** — top-level prod deps only (skip dev/test/types). For each: what it does *in this codebase* (not generic), and the load-bearing call site (`file:line`). If a dep is genuinely non-obvious (niche library, internal fork, name that doesn't reveal its purpose), the agent MAY check `context7` (or any docs-MCP server available in the environment) for a one-line "what is this library" — `context7__resolve-library-id` → `context7__query-docs`. Skip the lookup for well-known libraries (React, Express, Prisma, etc.) — the *generic* description is what we're trying to avoid; what matters is how it's used *here*.
+- **Dependency map** — top-level prod deps only (skip dev/test/types). For each: what it does *in this codebase* (not generic), and the load-bearing call site (`file:line`). If a dep is genuinely non-obvious (niche library, internal fork, name that doesn't reveal its purpose), the agent MAY check `context7` (or any docs-MCP server available in the environment) for a one-line "what is this library" — `context7__resolve-library-id` → `context7__query-docs`. Skip the lookup for well-known libraries (React, Express, Prisma, etc.) — the *generic* description is what we're trying to avoid; what matters is how it's used *here*. The "how it's used here" line requires a call site the agent actually opened. If no call site is found, the row reads **"declared but no usage found"** — that's a finding (candidate for removal), not a gap to paper over with a guess from the package name.
 - **Startup flow** — entry point → bootstrap → config loading → server start. A numbered sequence with `file:line` per step.
-- **Auth flow** — login/session/token handling, middleware/guards, user model, where authorization decisions are made. If none, the agent must say "no auth detected" explicitly so Step 3 doesn't fabricate one.
-- **Important files** — the 5–15 files a new contributor *must* know about, each with a one-line "why it matters."
+- **Auth flow** — login/session/token handling, middleware/guards, user model, where authorization decisions are made. This section must be a **traced code path** — a middleware/guard/session check the agent read this session, cited `file:line` — never an inference from an auth library appearing in the manifest. If none, the agent must say "no auth detected" explicitly AND state what was searched (e.g. "grepped for middleware, `session`, `jwt`, `[Authorize]`, guards — no hits") so Step 3 doesn't fabricate one.
+- **Important files** — the 5–15 files a new contributor *must* know about, each with a one-line "why it matters." A file earns its slot by being load-bearing, and the agent names the evidence per file: imported widely (roughly how many importers), owns a core domain concept, or is an entry point. "Looks important" is not evidence.
 
 Each agent reports back in ≤300 words with `file:line` citations. Don't ask Explore to read entire files — ask for the specific answer plus citations.
 
 ### 3. Synthesize ONBOARDING.md
 
-Write the artifact to `docs/ONBOARDING.md` if a `docs/` directory exists, otherwise `ONBOARDING.md` at repo root. Sections, in this order:
+Write the artifact to `docs/ONBOARDING.md` if a `docs/` directory exists, otherwise `ONBOARDING.md` at repo root.
+
+**No-fabrication gate:** every claim in the file traces to a probe run this session — a file an agent read, a grep it ran. If a claim can't name its probe, it's a hypothesis: verify it or omit it. Never fill a section by inference from framework conventions ("Next.js apps usually…").
+
+Sections, in this order:
 
 1. **Read this first** — 3–7 bullets max. The minimum a fresh contributor needs to not be dangerous.
 2. **System overview** — 1–3 paragraphs. What it does, who it serves, the dominant architectural shape.
 3. **Startup flow** — numbered, with `file:line` per step.
-4. **Auth flow** — same shape, or a one-liner "No authentication layer — this is X" if the agent confirmed none.
+4. **Auth flow** — same shape, or a one-liner "No authentication layer — this is X (searched: middleware, session/token handling, guards)" if the agent confirmed none.
 5. **Dependency map** — table: `Dependency | What it does here | Key call site`.
 6. **Important files** — bulleted list with `file:line` and a one-line "why it matters."
 7. **Project glossary** *(optional)* — only if `CONTEXT.md` exists or domain terms surfaced repeatedly during exploration.
@@ -97,7 +101,10 @@ If making this teammate-accessible would help, mention `ShareOnboardingGuide` �
 - ❌ Generic framework descriptions ("This is a Next.js app."). Call out what makes THIS codebase non-obvious — the custom session helper, the funky background job runner, the legacy module that traps newcomers.
 - ❌ Listing every dependency including dev/test/types. Prod + top-level only.
 - ❌ "Important files" with 40 entries. 5–15 is the budget. If you can't pick, you don't understand the codebase yet — Explore more.
-- ❌ Inventing an auth flow when there isn't one. If the agent reports no auth, the section says "No authentication layer." That's load-bearing information for a future reader.
+- ❌ Inventing an auth flow when there isn't one. If the agent reports no auth, the section says "No authentication layer" plus what was searched. That's load-bearing information for a future reader.
+- ❌ Auth described from the manifest instead of the code. ❌ "Uses NextAuth for authentication" because `next-auth` sits in `package.json` vs. ✅ "Requests hit `middleware.ts:8` → `auth()` from `lib/auth.ts:12`; unauthenticated users redirect at `middleware.ts:19`." Trace the path or write "none detected (searched: …)".
+- ❌ Papering over a dependency with no found call site. "Declared but no usage found" goes in the table verbatim — it's a finding.
+- ❌ Important files picked by vibes. Each entry names its evidence: import count, domain concept owned, or entry-point role.
 - ❌ Reading whole source files into the main context. Sub-agents return summaries with `file:line` citations — trust them.
 - ❌ Claims without `file:line` citations. A claim the next reader can't verify rots fast.
 - ❌ Hard-coded dates ("as of November 2025") in the file body. Git history is the timestamp.

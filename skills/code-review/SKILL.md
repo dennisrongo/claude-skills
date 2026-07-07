@@ -22,6 +22,16 @@ If you find issues, **do not start editing**. Produce the findings report first.
 
 This rule overrides any general "be helpful, fix it" instinct. A drive-by refactor mid-review collapses the user's mental model of what changed.
 
+## Evidence rules
+
+A claim about code you haven't opened this session is a hypothesis — verify it or label it as one.
+
+- **Read beyond the hunk.** Before flagging anything, `Read` the full enclosing function — and the whole file when it's small. Most false "missing null check" / "unhandled error" findings dissolve when you see the guard 10 lines above the hunk, or the caller that validates. A finding based only on diff-hunk context is not reportable.
+- **Grep before claiming absence.** "Dead code", "unused", "never called", "duplicated elsewhere" each require a repo-wide `Grep` for the identifier first. Cite the search in the finding: *"no callers found (`grep -rn 'buildQuery' src/`)"*.
+- **Quote, don't paraphrase.** Failing test output, error messages, and load-bearing identifiers go into findings verbatim (trimmed). A paraphrased error message loses the exact token that matters.
+- **Zero findings is a valid outcome.** Never invent findings to appear thorough — thoroughness is measured by what you checked, and the report already lists that (build, tests, lenses run). An empty Blockers section with a green build is a good report.
+- **User framing is input, not conclusion.** "The auth part is fine, just check the parser" does not exempt the auth part. Weight attention toward the ask, but never skip a category on the user's say-so.
+
 ## Workflow
 
 1. **Snapshot the diff.** Run in parallel:
@@ -38,7 +48,7 @@ This rule overrides any general "be helpful, fix it" instinct. A drive-by refact
    - `Cargo.toml` → `cargo build`, `cargo test`
    - `Makefile` → check for `test` / `build` targets first
    - Monorepo (`turbo.json`, `nx.json`, `pnpm-workspace.yaml`) → use the orchestrator
-4. **Run tests, then build.** Tests first (faster signal). If tests pass, run the build. Capture output. If a command doesn't exist or fails to start, note it and continue — don't fabricate a green result.
+4. **Run tests, then build.** Tests first (faster signal). If tests pass, run the build. Capture output. If a command doesn't exist or fails to start, note it and continue — don't fabricate a green result. A result you didn't observe is **not run** (report ⚠️ not detected), never "passed".
 5. **Review.** Decide single-pass vs. lens council (see [Lens council](#lens-council-for-non-trivial-diffs)):
    - **Single-pass (inline)** when the diff is small and tightly scoped — roughly: < 100 lines changed, < 5 files, no security-sensitive paths (auth, crypto, input validation, file/SQL/shell sinks). Walk the priority list yourself; faster on trivial changes.
    - **Lens council** otherwise. Spawn parallel `Explore` sub-agents — one per lens — then run an adversarial critique round before reporting.
@@ -59,12 +69,19 @@ These rules govern the fix-application phase only — they don't change the repo
 
 ## Categories
 
-- **`blocking`** — must fix before ship: bug, broken contract, security hole, build/test failure, missing migration, hard-coded secret.
+- **`blocking`** — must fix before ship: bug, broken contract, security hole, build/test failure, missing migration, hard-coded secret. **Burden of proof:** a `blocking` finding must include a one-sentence concrete failure scenario (*this input/state → this wrong outcome*). If you cannot write that sentence, demote to `suggestion`.
 - **`suggestion`** — would improve the code; user can take or leave. DRY consolidations, dead-code removal, missing error handling on non-critical paths.
 - **`nit`** — style/preference; never blocks.
-- **`praise`** — something done well. Include at least one when there's something genuine to praise.
+- **`praise`** — something done well, cited to a specific `file:line` (*"the retry wrapper at `http.ts:40` is exactly right for this flaky API"*). Generic filler ("nice clean code!") is worse than omitting the section. Include one only when it's genuine.
 
 Lead each finding with the *why*. "This swallows the exception so a failure here is silently lost" beats "add error handling".
+
+Same finding, written badly and well:
+
+- ❌ **B1. Add error handling to `fetchUser`** — `api/user.ts:42`. *(No failure scenario, no consequence, one citation — reads as a reflex; the reviewer can't verify it or weigh it.)*
+- ✅ **B1. Unhandled rejection on deleted user** — `api/user.ts:42`. **Why:** `fetchUser` rejects on 404, but `ProfilePage` (`pages/profile.tsx:18`) never catches — visiting a deleted user's profile renders a blank page with an unhandled rejection. **Fix:** catch in `ProfilePage` and render the not-found state.
+
+The ✅ names the trigger, the concrete consequence, and both `file:line` sites — verifiable without re-deriving it.
 
 ## What to look for
 
@@ -162,7 +179,7 @@ Performance (§5), readability (§7), and style (§8) usually roll into Design �
 1. **Spawn in parallel.** Send a **single message** with N `Agent` calls (`subagent_type=Explore`). Each lens gets:
    - The full diff (or the slice relevant to its files when the diff is huge).
    - **One** lens with its checklist verbatim from [What to look for](#what-to-look-for).
-   - Instructions: "Find issues **only in your lens.** Categorize each as `blocking` / `suggestion` / `nit`. Cite `file:line` for every finding. Lead each finding with the *why*. If your lens has no findings, say 'no findings' explicitly. Report in ≤500 words."
+   - Instructions: "Find issues **only in your lens.** Read the full enclosing function before flagging — hunk-only findings are not reportable. Categorize each as `blocking` / `suggestion` / `nit`; a `blocking` must state a one-sentence concrete failure scenario. Cite `file:line` for every finding. Lead each finding with the *why*. If your lens has no findings, say 'no findings' explicitly — do not pad. Report in ≤500 words."
 2. **Collect findings.** Each agent returns its list. Don't publish yet.
 3. **Critique round.** Read all lenses side by side, then do an adversarial pass before the report:
    - **Challenge every `blocking`** — "is this actually exploitable / actually a bug / would this actually break in production?" Demote to `suggestion` or drop if the answer is no when you read the surrounding code.
@@ -257,6 +274,10 @@ End with the offer. Wait for the user's choice. Apply only the approved set, the
 - ❌ DRY-ing prematurely — calling out three similar lines as duplication when the right call is to leave them. Note the pattern; flag only when the abstraction is clearly warranted.
 - ❌ Padding the report with style nits when there are correctness blockers.
 - ❌ Hand-wavy findings without `file:line`.
+- ❌ Flagging from the diff hunk alone. Read the enclosing function first — the guard is often 10 lines above the hunk.
+- ❌ Claiming "unused" / "dead" / "duplicated elsewhere" without a repo-wide grep for the identifier.
+- ❌ A `blocking` with no concrete failure scenario. Can't write "this input → this wrong outcome"? It's a `suggestion`.
+- ❌ Inventing findings on a clean diff to look thorough. Zero findings + green build is a valid, complete report.
 - ❌ Convening the lens council on a 15-line diff. Single-pass it.
 - ❌ Spawning the lens agents serially instead of in parallel — one message, N agents.
 - ❌ Skipping the critique round and publishing the raw union of lens findings. False-positive blockers erode trust fast.

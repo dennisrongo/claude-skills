@@ -43,6 +43,8 @@ The user does **not** want hard-coded Cargo / npm versions baked into the skill.
 3. Pin the Rust edition to `2021` unless the user asks otherwise.
 4. Quote the resolved versions back to the user before generating, so they can object.
 5. Default to **npm** unless `pnpm` or `bun` is present and the user prefers it.
+6. Concrete resolution commands when context7 is unavailable: `npm view @tauri-apps/api version`, `cargo search <crate> --limit 1`, or WebFetch `https://crates.io/api/v1/crates/<crate>` (`max_stable_version`). Never write a version you did not just resolve this session — no versions from memory, no invented numbers.
+7. **Tauri 1.x is poison.** Training data is full of v1 patterns that look plausible and fail on v2. Never emit: `import { invoke } from '@tauri-apps/api/tauri'` (the v2 path is `@tauri-apps/api/core`), a `tauri.allowlist` or top-level `tauri` key in `tauri.conf.json` (v2 uses `app` / `bundle` / `plugins` + `capabilities/*.json`), or v1 plugin names/APIs. If you are not certain a conf key, capability permission string, or plugin API exists in Tauri 2, verify it against the installed schema (`node_modules/@tauri-apps/cli/config.schema.json`; valid permission strings appear in `src-tauri/gen/schemas/` after the first build) or the plugin's docs **before** writing code that depends on it. Capability `permissions` entries use the short plugin name (`dialog:allow-open`, `fs:allow-read-file`) — never a `tauri-plugin-` prefix. Note that `cargo check` compiles `tauri-build`, which validates `tauri.conf.json` and `capabilities/*.json` — a schema or unknown-permission error there is a JSON problem; fix the conf/capability file against the schema, don't edit Rust code to appease it.
 
 ### Step 2 — Gather inputs (ask once, in one batch)
 
@@ -71,14 +73,17 @@ Use the **templates in [`references/templates/`](references/templates/)** as the
 - Create directories before files. On Windows shell use PowerShell `New-Item -ItemType Directory -Force`.
 - Do **not** run `create-tauri-app` to bootstrap — write the files directly from templates so the layout matches the conventions in [`references/folder-layout.md`](references/folder-layout.md). Use `npm install` after `package.json` is written, then `cargo fetch` from `src-tauri/` to seed the Cargo cache.
 - For icons, run `npx @tauri-apps/cli icon <path-to-source.png>` once a source image exists, or generate a 1024×1024 placeholder with `sharp` if the user wants. Do **not** commit a placeholder square as the final icon — surface it as a TODO.
+- If a generator IS run (`create-tauri-app` at the user's insistence, `npx @tauri-apps/cli icon`, `tauri signer generate`) and its output differs from this skill's layout: **Tauri wins on file locations it mandates** (`src-tauri/` shape, `capabilities/`, `gen/`, icon paths), **this skill wins on everything Tauri doesn't mandate** (the `commands/`/`state/`/`storage/`/`platform/` module split, frontend hooks layout). Reconcile deliberately and list every deviation in your report — never force the skill layout over a framework requirement, never silently abandon the skill's patterns.
 
 ### Step 4 — Verify and report
 
 - Run `npm install` (or chosen PM).
-- Run `cd src-tauri && cargo build` — must exit 0. (Don't run `tauri dev` in CI — it opens a window.)
+- Run `cd src-tauri && cargo build` — must exit 0. (Don't run `tauri dev` in CI — it opens a window.) If a full `cargo build` is prohibitively slow in this environment, `cargo check` is the minimum acceptable bar — state which one you ran.
 - Run `cd src-tauri && cargo test` — must exit 0 if any tests were generated.
-- Run `npm run build` (frontend) — must exit 0.
+- Run `npm run build` (frontend) — must exit 0. `cargo check` + `npm run build` together are the floor; a full `tauri build` is optional (slow).
 - Optionally run `npm run tauri build -- --debug` if the user wants a debug bundle; skip in CI by default since it's slow.
+- **A scaffold that hasn't compiled is not delivered.** Paste the actual proof lines in your report (cargo's `Finished` profile line, `test result: ok`, Vite's `✓ built in ...`). Never report success from memory of the steps you intended, and never report partial success as success — if something is red, say exactly what is red.
+- **CLI failure protocol** (applies to `npm install`, `cargo build`/`check`/`test`, `npm run build`): read the full error output — for cargo, fix the **first** error; later ones are usually cascade. Change exactly one thing, retry once. If the same step fails twice, stop scaffolding and surface the verbatim error to the user — do not keep generating files on a broken base, and do not re-run the identical command hoping for a different result.
 - Reply with a short summary: project path, versions chosen, plugins wired, bundle identifier, next steps (e.g. "fill in the macOS `Info.plist` usage descriptions for any permissions you'll request", "generate updater keys with `npx tauri signer generate`", "run `npm run tauri dev`").
 
 ## Project layout (canonical)
@@ -236,6 +241,9 @@ Every one of these is forbidden in generated code. Rationale for each is in [`re
    3. `src-tauri/Cargo.toml` (with target-specific deps + release profile), `src-tauri/build.rs`, `src-tauri/tauri.conf.json`, `src-tauri/Info.plist`, `src-tauri/entitlements.plist`, `src-tauri/capabilities/default.json`.
    4. `src-tauri/icons/` — placeholder 1024×1024 PNG **only** if the user hasn't supplied one. Surface as TODO; tell them to run `npx @tauri-apps/cli icon icons/icon.png`.
    5. `src-tauri/src/main.rs`, `src-tauri/src/lib.rs`, `src-tauri/src/error/mod.rs`, `src-tauri/src/state/mod.rs`, `src-tauri/src/storage/mod.rs`, `src-tauri/src/commands/mod.rs` + `src-tauri/src/commands/system.rs`, `src-tauri/src/platform/{mod,traits,macos,windows,linux,wrappers}.rs`, `src-tauri/src/settings/{mod,defaults,storage,commands}.rs`.
+
+      **Checkpoint:** run `npm install` then a first `cd src-tauri && cargo check` here, before optional modules — errors localize to the core tree, and this check runs `tauri-build`, which validates `tauri.conf.json` + `capabilities/*.json` and generates `src-tauri/gen/schemas/` (the authority for valid permission strings). Fix any conf/capability error now, per the Step-4 failure protocol, before writing more capability entries.
+
    6. Optional: `src-tauri/src/encryption/mod.rs`, `src-tauri/src/tray.rs`, `src-tauri/src/commands/<more>.rs` based on user answers.
    7. `src-tauri/tests/common/mod.rs` + at least one integration test file (e.g. `system_test.rs`) so CI has something real to run.
 4. `npm install`.
@@ -261,7 +269,7 @@ For command `{{command}}` (snake_case) in module `commands/{{domain}}.rs`:
    - Export the hook. Do **not** call `invoke()` inline in a component.
 4. **Test**: add an integration test in `src-tauri/tests/{{domain}}_test.rs` that exercises the command's underlying function (the `#[tauri::command]` itself is hard to call without a full Tauri context — test the inner function).
 
-After generating: `cd src-tauri && cargo build && cargo test` then `npm run build` from the project root.
+After generating: `cd src-tauri && cargo build && cargo test` then `npm run build` from the project root. Apply the Step-4 proof-and-failure protocol — paste the green lines; the same step failing twice = stop and surface the verbatim error.
 
 ### Mode 3 — `add-module`
 
@@ -275,7 +283,7 @@ For module `{{module}}` (snake_case):
 6. Add a `#[cfg(test)]` `mod tests { ... }` block at the bottom of `mod.rs` covering pure logic (no Tauri context required).
 7. Add a `src-tauri/tests/{{module}}_test.rs` integration test if the module has cross-cutting behavior.
 
-After generating: `cd src-tauri && cargo build && cargo test`.
+After generating: `cd src-tauri && cargo build && cargo test` — Step-4 proof-and-failure protocol applies.
 
 ## NuGet... wait, this is Tauri. Cargo + npm packages (resolve latest stable at scaffold time)
 
@@ -319,6 +327,22 @@ Look these up at scaffold time — do not hand-paste versions:
 - `sharp` only if the user wants icon generation locally
 
 ## Verification checklist before reporting "done"
+
+Run this as a **mechanical pass over the generated tree** — grep, don't recall. The Eliminate list is easy to hold at file 1 and forgotten by file 30. Start with this grep block; every command must return nothing:
+
+```bash
+grep -rn "cfg!(target_os" src-tauri/src --include='*.rs' | grep -v "src/platform/"   # platform checks outside platform/
+grep -rn "@tauri-apps/api/tauri" src/                          # v1 import path (v2 is /core)
+grep -n "allowlist\|systemTray" src-tauri/tauri.conf.json      # v1 config schema leaking in (v2: capabilities/, app.trayIcon)
+grep -rn "tauri::api::" src-tauri/src --include='*.rs'         # v1 Rust API paths (v2 moved these to plugins)
+grep -rnE "pub (api_key|token|secret)\w*: String" src-tauri/src/   # plaintext secret fields (must be EncryptedApiKey)
+grep -rn "localStorage.setItem\|sessionStorage.setItem" src/   # tokens/secrets in web storage
+grep -n "\"devtools\": true" src-tauri/tauri.conf.json         # devtools enabled in release config
+grep -rn "std::fs::" src-tauri/src/commands/                   # raw fs in command bodies
+find src-tauri/src -name "*.backup" -o -name "*.orig" -o -name "*.temp"   # WIP artefacts
+```
+
+A hit means fix it and re-run the grep — never rationalize it away. Then the full checklist:
 
 - [ ] `npm install` succeeds.
 - [ ] `cd src-tauri && cargo build` exits 0.

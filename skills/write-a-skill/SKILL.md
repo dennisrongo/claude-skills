@@ -115,6 +115,30 @@ The description is the **only** field Claude reads when deciding whether to cons
 
 The most common failure mode is **under-triggering** (Claude doesn't load the skill when it should). Err on the side of *more* trigger phrases — three is the floor, not the ceiling.
 
+## Write for the weakest reader
+
+The skill will be executed by whatever model loads it — often a smaller one. A top-tier model fills gaps with judgment; a weak one fills them with confident garbage. Encode the judgment explicitly. Preempt these predictable failure modes:
+
+1. **Ungrounded claims.** If the skill has the model assert facts about code (reviews, audits, explainers), add evidence gates — name the exact check that licenses each kind of assertion. Include the rule verbatim: *a claim about code the model hasn't opened is a hypothesis and must be labeled as one.*
+   - ❌ "Flag unused exports." — the model flags whatever it doesn't recognize.
+   - ✅ "Flag an export as unused only after a repo-wide grep for its name returns no callers outside its own file. Read the whole function before judging it, not just the diff hunk."
+2. **Severity inflation / padding.** Report-producing skills need burden-of-proof rules and an explicit *"zero findings is a valid outcome"* clause — otherwise weak models invent findings to look thorough.
+   - ❌ "Be rigorous about severity." — everything still gets marked critical.
+   - ✅ "A `blocker` must name a concrete failure scenario in one sentence (`user does X → wrong Y`). No scenario → demote to `suggestion`. Zero blockers is a valid result."
+3. **Confabulated success.** Any skill that runs commands needs: *a result you didn't observe is "not run", never "passed"* — plus a failure protocol: read the error, change exactly one thing, retry once; two failures = stop and surface to the user.
+   - ❌ "Run the tests and fix any failures." — the model may report "tests pass" without running them.
+   - ✅ "Run the test command and quote its summary line in your report. If you did not run it, write `tests: not run`."
+4. **Contrastive examples beat rules.** Weak models imitate examples more than they follow rules. Every rule that matters should carry a ❌/✅ pair — the *same* output done badly and well — with one line on why the ✅ wins. A rule without an example is a suggestion.
+5. **Forking questions.** Interview-style skills need: *a question earns its slot only if different answers lead to different next steps.*
+   - ❌ "Should this be robust and user-friendly?" — every answer leads to the same next step; it's filler.
+   - ✅ "Postgres or SQLite?" — each answer changes the migration step that follows.
+6. **Re-anchoring.** Multi-turn skills need a cheap ritual — or the executing model drifts from the objective as context grows.
+   - ❌ A 9-step workflow with no checkpoint — by step 6 the model is optimizing the wrong thing.
+   - ✅ "Before each step, restate the goal in one line. If the step doesn't serve it, stop."
+7. **Context budget.** Every line of the skill is loaded into the executing model's window. Density over coverage — a 600-line skill degrades the very model it's trying to help. Cut before you split; split into `references/` before you exceed ~150 lines.
+
+When reviewing a draft, simulate the weakest reader: for each instruction ask "could this be followed *wrong* while technically complying?" If yes, tighten it with a check, a threshold, or an example.
+
 ## When to add scripts or reference files
 
 Default to a single `SKILL.md`. Only escalate when:
@@ -136,6 +160,9 @@ Before showing the draft to the user:
 - [ ] Workflow steps are imperative and verifiable, not vibes ("Verify X exists", not "Be careful")
 - [ ] At least one concrete example
 - [ ] Anti-patterns section names plausible wrong behaviors, not strawmen
+- [ ] Each rule that matters carries a ❌/✅ pair of the same output done badly and well
+- [ ] Each assertion the skill asks the model to make has an evidence gate — the exact check that licenses it
+- [ ] Report-producing skills state "zero findings is a valid outcome"; command-running skills state "a result you didn't observe is 'not run', never 'passed'"
 - [ ] No time-sensitive info (specific dates, "as of 2026", model version numbers) unless load-bearing
 - [ ] File is under ~150 lines; longer content is split into `references/`
 - [ ] If targeting the library repo, README table row is added in alphabetical order
@@ -178,6 +205,8 @@ Before showing the draft to the user:
 - ❌ Writing a vague description like "Helps with commits." — Claude won't trigger it. Always include explicit trigger phrases.
 - ❌ Inventing trigger phrases the user didn't confirm — ask, don't guess.
 - ❌ Padding `SKILL.md` with motivational prose. Every line should change Claude's behavior; if removing it changes nothing, cut it.
+- ❌ Delegating judgment to the executing model ("use discretion", "be careful", "apply good judgment") — name the check, the threshold, and the fallback instead.
+- ❌ Stating a load-bearing rule without a ❌/✅ pair — weak models imitate examples, not prose.
 - ❌ Hard-coding model names, package versions, or dates that will rot. Resolve at runtime when possible.
 - ❌ Putting executable behavior in `SKILL.md` prose when a 10-line script would be deterministic and cheaper.
 - ❌ For library skills: drafting the SKILL.md but forgetting to update the README table — the skill is invisible to anyone browsing the repo.
