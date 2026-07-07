@@ -30,7 +30,7 @@ Do **not** auto-trigger when the user is debugging a failing test (`diagnose`) o
    - A test that stays green against broken code is tautological. Fix its assertion or delete it — never ship it.
 7. **Mock only boundaries you don't own** — network, clock, filesystem, database, message bus, external SDKs. Use the project's existing test-double convention (grep sibling tests for the fixture/mocking pattern and match it). Never mock the unit's own collaborators just to assert they were called: that welds the test to the implementation, and the test now fails on refactors and passes on bugs — the exact inversion of its job.
    - ❌ `expect(userService.formatName).toHaveBeenCalledWith(user)` — asserts plumbing; survives `formatName` returning garbage.
-   - ✅ `expect(response.displayName).toBe("Rongo, Dennis")` — asserts the observable result; survives any internal restructure that keeps behavior.
+   - ✅ `expect(response.displayName).toBe("Smith, Jane")` — asserts the observable result; survives any internal restructure that keeps behavior.
 8. **For untested legacy code: characterization tests first.** Capture what the code *does* (run it, record actual outputs for the ranked inputs), not what you believe it should do. If an output looks like a bug, pin it anyway with a comment: `// characterization: pins current (possibly wrong) behavior — see #issue`. Report the suspected bug separately; changing it is a behavior change, not a test.
 9. **Final gate.** Run the full suite once more and quote the summary. Report: behaviors covered (with test names), behaviors deliberately not covered and why, and any suspected bugs found while reading. Rank the report — the two tests that matter, not fifteen equal bullets.
 
