@@ -46,6 +46,20 @@ SQL changes are particularly sensitive because they often run against production
 
 Lead each finding with the *why*. "This swallows the original error and surfaces a misleading permission denial" beats "add `;THROW;`".
 
+## Pattern hit ≠ finding
+
+The 17 checks are pattern matches. A ripgrep hit is a **candidate** — before reporting it, `Read` the whole procedure/batch it sits in; severity depends on context the pattern can't see. Concrete demotions:
+
+- `WITH (NOLOCK)` hit, but the proc is a read-only reporting proc with no `INSERT`/`UPDATE`/`DELETE` → **WARN** at most, not BLOCKER (check #13 blocks only when the same proc writes the tables it dirty-reads).
+- `DECLARE @retry` with no `WHILE @retry` in sight → check for a `GOTO`-label retry loop consuming it before flagging; only report when nothing reads the variable.
+- New `CREATE TABLE` with no index, but it's a static lookup/config table seeded with a handful of rows in the same diff → **WARN** with a one-line reason, not BLOCKER (the deadlock incident needs growth under concurrent writes).
+
+Every reported finding must:
+1. **Quote the offending SQL verbatim** — the exact line(s) from the file, not a paraphrase. Severity turns on exact tokens.
+2. For `BLOCKER` / `WARN`: state the concrete production incident in one sentence (*this state → this outcome*, e.g. "first deadlock under load → SP silently gives up, rows never written"). If you can't write that sentence after reading the full proc, demote one level.
+
+Zero findings is a valid outcome — a clean diff gets a clean report. Never stretch INFO items into WARNs to fill sections; thoroughness is the 17 checks you ran, which the report shows.
+
 ## What to check
 
 Use ripgrep for detection. The patterns below are starting points — adapt to the actual diff text.
@@ -148,6 +162,7 @@ Use ripgrep for detection. The patterns below are starting points — adapt to t
 ## Blockers (<N>)
 
 ### B1. <short title> — `path/to/file.sql:<line>`
+**Evidence:** `<offending SQL fragment, quoted verbatim>`
 **Why:** <root cause / production consequence — one line>
 **Fix:** <concrete recommendation — one line>
 
@@ -156,6 +171,7 @@ Use ripgrep for detection. The patterns below are starting points — adapt to t
 ## Warnings (<N>)
 
 ### W1. <short title> — `path/to/file.sql:<line>`
+**Evidence:** `<offending SQL fragment, quoted verbatim>`
 **Why:** ...
 **Fix:** ...
 
@@ -220,6 +236,10 @@ End with the offer. Wait for the user's choice.
 - ❌ Suggesting autofixes for `BLOCKER` items without asking. SQL deploys to production; user confirmation gates the change.
 - ❌ Listing a `nit` when there's a `BLOCKER` next to it. Lead with severity.
 - ❌ Hand-wavy findings without `file:line`.
+- ❌ Reporting a raw ripgrep hit without reading the surrounding procedure. A pattern match is a candidate; the proc's full context sets the severity (see [Pattern hit ≠ finding](#pattern-hit--finding)).
+- ❌ Paraphrasing the offending SQL instead of quoting it verbatim. `WITH (NOLOCK)` vs `READPAST`, `@retry` vs `@retryCount` — the exact token is the finding.
+- ❌ A `BLOCKER` with no one-sentence production-incident scenario. Can't name the incident? It's a `WARN`.
+- ❌ Padding a clean diff with stretched findings. Zero findings is a valid report.
 - ❌ Inventing antipatterns not in [What to check](#what-to-check). This is a fixed catalog — extending it is a `write-a-skill` change, not a per-run improvisation.
 - ❌ Running on non-SQL files. The skill is `.sql`-scoped; mixed diffs route to `code-review` for the non-SQL parts.
 - ✅ Diff-scoped scan for modified files, full scan for new files, findings categorized + cited + offered as fixes.

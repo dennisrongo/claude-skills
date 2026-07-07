@@ -107,6 +107,11 @@ Read `.claude/handoffs/<this-filename>.md` first.
 
 The **Next Session Prompt** is the most important section — it's what the user pastes into the new chat to bootstrap continuity. Write it so a fresh Claude with no prior context can act on it immediately.
 
+A prompt that survives a fresh session vs. one that doesn't:
+
+- ❌ "**Goal:** Continue working on auth. **Then:** finish the remaining fixes." — which file? what's broken? what command shows it? Every answer lives in the dead session.
+- ✅ "**Goal:** Make `linkAccount` merge OAuth identities instead of erroring. **Start by reviewing:** `src/auth/link.ts` (the `linkAccount` stub at line 42), `src/auth/__tests__/link.test.ts`. **Then:** implement the merge branch for the `existing-verified-email` case; run `pnpm vitest run src/auth -t linkAccount` — currently failing with `Error: account already exists`." — names the file, the failing test, the exact command, and the next action.
+
 ## Workflow
 
 1. **Scan the current conversation** for: the stated objective, files you've read or edited, decisions made (and the reasoning), commands run, errors hit, and open threads.
@@ -115,13 +120,16 @@ The **Next Session Prompt** is the most important section — it's what the user
 4. **Pick the filename** — today's date + short slug.
 5. **Create `.claude/handoffs/` if missing**, then write the file with the Write tool.
 6. **Write the memory pointer** to the auto-memory directory and index it in `MEMORY.md`.
-7. **Report back**: tell the user the file path, the slug, and quote the Next Session Prompt so they can copy it without opening the file.
+7. **Run the zero-context self-test.** Re-read the Next Session Prompt as if you knew nothing about this conversation: does it name the exact files, the exact command to run, the current failing state, and the immediate next action? If answering any of those requires this conversation, the hand-off is not done — fix it before reporting.
+8. **Report back**: tell the user the file path, the slug, and quote the Next Session Prompt so they can copy it without opening the file.
 
 ## Verifying before you write
 
 - If you reference a file path, confirm it exists (or that you created it this session).
 - If you reference a command, make sure it's the one that actually works in this repo (check `package.json`, `Makefile`, etc.).
 - If a decision in the conversation was reversed later, record the final decision — not the abandoned one.
+- **Exact artifacts, never paraphrases.** Commands verbatim and runnable (`pnpm vitest run src/auth -t linkAccount`, not "run the auth tests"). Failing test names copied from actual runner output. Branch name from `git branch --show-current`. Uncommitted-state description from actual `git status` output — never from memory of what you think you edited.
+- If tests were failing when work stopped, re-run them now and quote the exact failure. "Some tests failing" forces the next session to rediscover which — that's the context loss this skill exists to prevent.
 
 ## Examples
 
@@ -147,6 +155,8 @@ The new session reads the referenced hand-off file first, confirms files still e
 - Dumping the entire conversation transcript — hand-off is a synthesis, not a log.
 - Forgetting the memory pointer — without it, the next session won't know the hand-off exists unless the user remembers to paste the prompt.
 - Skipping the **Next Session Prompt** section — that's the single highest-value piece of the doc.
+- Quoting commands, test names, or branch names from memory instead of from actual output. `git status`, `git branch --show-current`, and the test runner are the sources of truth.
+- Shipping a Next Session Prompt that fails the zero-context self-test — if understanding any part of it requires this conversation, it's a summary, not a hand-off.
 
 ## Notes
 

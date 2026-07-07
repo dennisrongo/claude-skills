@@ -29,10 +29,12 @@ If the user wants to build *after* grilling, hand off to `plan-and-build` and le
 ## Core principles
 
 - **One question at a time.** Always use `AskUserQuestion` with 2–4 concrete options and a recommended pick first (matches the convention used by [`plan-and-build`](../plan-and-build/SKILL.md)). Never stack three questions in one message — the user can only think clearly about one branch of the design tree at a time.
-- **Explore before asking.** If the answer is in the code, read it. Don't ask the user what `OrderService.Cancel` does when you can open the file. Ask only the questions the code can't answer.
+- **Every question must fork the design.** A question earns its slot only if different answers lead to different designs or documents. If every answer leads to the same next step, don't ask it — you're performing rigor, not applying it.
+- **Explore before asking.** If the answer is in the code, read it. Don't ask the user what `OrderService.Cancel` does when you can open the file. Ask only the questions the code can't answer. A claim about code you haven't opened this session is a **hypothesis** — label it one ("I suspect `Cancel` soft-deletes; confirming…") and read the file before building a question or an objection on it.
 - **Terminology rigor.** Surface conflicts between the user's words and the glossary on the spot. Challenge vague or overloaded terms with the canonical alternative. If the user says "account", check whether the glossary distinguishes `Customer` from `User` — and force a choice.
 - **Probe with concrete scenarios.** Invent edge cases that make abstract language fail. "What happens when two users press *Cancel* on the same order within 50ms?"
-- **Contradiction surfacing.** When stated intent contradicts what the code already does, name the discrepancy explicitly and ask which wins. Don't paper over it.
+- **Contradiction surfacing.** When stated intent contradicts what the code already does, name the discrepancy explicitly and ask which wins. Don't paper over it. An objection must cite the specific thing it conflicts with — the `CONTEXT.md` term, the ADR number, or the `file:line` you read this session. If you can't name the conflict, you don't have an objection. Zero real conflicts is a valid, reportable outcome — don't invent friction to look rigorous.
+- **Fold on preference, not on facts.** If the user's answer contradicts a documented decision or code you've cited, present the conflict once more with the citation. If they still overrule you, defer and record their call. Capitulating the moment the user pushes back — while the cited evidence still stands — is as bad as stonewalling.
 - **In-the-moment doc updates.** The moment a fuzzy term resolves, write the glossary entry into `CONTEXT.md`. Don't batch — batched updates get dropped.
 - **No code.** This skill writes only to `CONTEXT.md`, `CONTEXT-MAP.md`, and `docs/adr/*.md`. Never edit source files, never run migrations, never run tests. If the conversation reveals a code-level bug, note it and stop — that's a separate task.
 
@@ -76,6 +78,11 @@ Use `AskUserQuestion`. Lead with the recommendation, append "(Recommended)" to i
 
 If the user goes off-piste or picks "Other", absorb their answer, restate it in canonical terms, and continue.
 
+A forking question vs. a checklist question:
+
+- ❌ "Should we handle errors if the payment API fails?" — every answer is "yes"; the design doesn't move. Don't ask it.
+- ✅ "When the payment API fails mid-checkout, does the order persist as `PaymentPending` (new status + retry worker) or roll back entirely (no schema change)?" — answer A adds a status and a background job, answer B adds nothing. The answers diverge, so the question earns its slot.
+
 ## Phase 3 — Update docs in-flight
 
 As decisions crystallise, write them immediately. Two artefacts only.
@@ -112,6 +119,11 @@ Create an ADR only when **all** of:
 
 If any one of those is missing, don't write an ADR. A glossary entry or a code comment is enough.
 
+Calibration:
+
+- ❌ "Add an index on `Orders(CustomerId)`" — reversed in one migration, obvious from the query plan, no seriously-considered alternative. No ADR; it's just code.
+- ✅ "Webhook delivery becomes at-least-once via queue" — consumers must be idempotent forever (hard to reverse), sync was the obvious default (non-obvious), and outbox / sync-with-retries were genuinely weighed (real trade-offs). Write the ADR.
+
 #### ADR template
 
 Drop into `docs/adr/NNNN-short-title-kebab.md`, numbered sequentially after the highest existing ADR:
@@ -147,7 +159,7 @@ Keep ADRs immutable once accepted. If the decision changes, write a new ADR that
 
 Stop grilling when **any** of these are true. Don't pad the conversation.
 
-- Further questions stop changing the design — the next question's answer wouldn't move a file or change a name.
+- Further questions stop changing the design — the next question's answer wouldn't move a file or change a name. Operational check: **if the last two answers changed nothing** — no glossary entry, no renamed term, no design fork — the interview is done; summarise and move to crystallisation. Don't stop after two questions because the surface looks calm, and don't grill past the point where answers stop moving files.
 - All terms in the user's spec have a matching `CONTEXT.md` entry (existing or just-added) and no contradictions remain.
 - The user explicitly signals "good enough" — accept it, but quickly note any genuinely open questions you can see.
 - The conversation has revealed that the right next step is **not** to grill further but to prototype, diagnose, or pick a different scope. Say so and stop.
@@ -163,6 +175,10 @@ When you stop, produce a short closing summary:
 
 - Asking three questions in one message. One at a time, with options.
 - Asking the user something the codebase already answers. Read first, ask second.
+- Asking questions whose every answer leads to the same next step. If the answer can't fork the design, cut the question.
+- Raising an objection that cites nothing. Name the `CONTEXT.md` term, ADR, or `file:line` it conflicts with — or drop it. "No conflicts found" is a valid result.
+- Folding on first pushback while the cited evidence still stands. Restate the conflict once with the citation, then defer.
+- Asserting what code does without having read it this session. Unread-code claims are hypotheses — say so.
 - Letting a vague term ("account", "user", "delete", "cancel", "process") slide because the user used it confidently.
 - Adding code, tests, or migrations during this skill. Out of scope.
 - Writing an ADR for a decision that's easily reversed, obvious from the code, or had no real alternative.

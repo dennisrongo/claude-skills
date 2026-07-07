@@ -20,7 +20,8 @@ Do **not** auto-trigger when the user is asking about diff-level code quality, D
 
 - **Recommend, don't refactor.** This is an audit. Never edit code unprompted. After the report, ask per-blocker whether the user wants a fix drafted.
 - **Evidence is mandatory.** Every PASS must cite `file:line`. "I checked, it looks fine" is not a PASS — that's a GAP labelled `couldn't verify`.
-- **N/A needs a reason.** Mark a category N/A only with a one-line justification (e.g. *"server-only service, no local storage layer"*). Don't fabricate gaps for categories that don't apply.
+- **Name the probe.** Every PASS also names the exact check that produced its evidence — the grep pattern + path, the file you read, or the command you ran. If you didn't run a probe for an item, it's GAP labelled `not checked` — never PASS. A result you didn't observe doesn't exist.
+- **N/A needs a reason grounded in the scope.** The justification must derive from an observed fact about *this* scope, with the probe that established it (e.g. *"no files under `migrations/` in the diff (`git diff --stat`) → migrations N/A"*) — never a guess from the project type. Don't fabricate gaps for categories that don't apply.
 - **Stay in your lane.** Don't re-do `code-review`'s work. If the user asks about DRY / dead code / test coverage, defer.
 
 ## Workflow
@@ -39,6 +40,8 @@ Echo the scope back in one line before starting Phase 2 (*"Auditing branch `feat
 ### Phase 2 — Walk the 10 categories
 
 For each category: state the criterion in one line, search the codebase for evidence, mark PASS / GAP / N/A. Use `Grep` and `Read` aggressively; spawn an `Explore` sub-agent for any category where the search would take more than 3 queries.
+
+Record each probe as you run it — the report cites them. A probe is a specific `Grep` pattern + path, a `Read` of a named file, or a command with its observed output. A sub-agent's result counts as a probe only if the sub-agent names its own probes and citations; "the agent said it's fine" is not evidence. Where a check depends on the user (dashboards, runbooks, rollout plans), record their answer as the probe (*"user confirmed: alert added to Grafana billing board"*) — an unanswered question stays GAP.
 
 #### 1. Logging
 
@@ -118,11 +121,16 @@ Group findings into four buckets. Order matters — blocking first.
 - **<category>:** <one-line problem> — `<file:line>`
 
 ## N/A
-- **<category>:** <one-line reason>
+- **<category>:** <one-line reason grounded in the scope> (probe: `<what established it>`)
 
 ## Passing
-- **<category>:** <one-line evidence> — `<file:line>`
+- **<category>:** <one-line evidence> — `<file:line>` (probe: `<grep pattern / file read / command>`)
 ```
+
+Same PASS, written badly and well:
+
+- ❌ `**Logging:** structured logging in place — src/billing/` — no line, no probe; unverifiable, could have been written without looking.
+- ✅ `**Logging:** new invoice paths log via structured logger with request ID — src/billing/invoice.ts:31 (probe: grep -n "logger\." src/billing/ → 6 call sites, all pass ctx.reqId)` — anyone can rerun the probe and land on the same line.
 
 **Blocking = any one of:**
 - Secrets in code / logs / committed config.
@@ -145,8 +153,8 @@ After the report, ask: *"Want me to draft fixes for the blocking items, or stop 
 
 **Claude:**
 1. Echoes scope: *"Auditing `feat/billing-v2` against `main` — 14 files changed."*
-2. Walks the 10 categories, citing `file:line` per finding.
-3. Reports: 2 blocking (missing authz on `POST /api/v2/invoices`, no rollback for the `currency_code NOT NULL` migration), 4 should-fix, 1 N/A (local-first storage — server-only), 3 passing.
+2. Walks the 10 categories, citing `file:line` per finding and the probe that produced it.
+3. Reports: 2 blocking (missing authz on `POST /api/v2/invoices` — `no tenant predicate in routes/invoices.ts:24-51, read top-to-bottom`; no rollback for the `currency_code NOT NULL` migration), 4 should-fix, 1 N/A (local-first storage — *"no client-side store in scope: `grep -rl 'localStorage\|indexedDB' src/billing/` → 0 hits, server-only module"*), 3 passing with probes named.
 4. Asks whether to draft fixes for the blockers.
 
 ### Example 2: Module-scoped audit
@@ -167,6 +175,8 @@ After the report, ask: *"Want me to draft fixes for the blocking items, or stop 
 ## Anti-patterns
 
 - ❌ Marking a category PASS without a `file:line` citation. "Looks fine" is a GAP labelled `couldn't verify`.
+- ❌ PASS on vibes — a PASS with no named probe (the grep / read / command that produced the evidence) is a GAP labelled `not checked`.
+- ❌ N/A from a guess about the project type. Derive it from the scope and name the probe: *"no schema files in this diff (`git diff --stat`) → migrations N/A"*.
 - ❌ Inventing GAPs in N/A categories. A server-only service genuinely has no local-first storage layer — say so and move on.
 - ❌ Reviewing diff quality (DRY, dead code, missing tests) under the ship-it banner. Defer to `code-review`.
 - ❌ Editing code mid-audit. The report comes first, then the user picks what to fix.

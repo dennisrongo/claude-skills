@@ -59,14 +59,22 @@ Then use the Agent tool with `subagent_type=Explore` to walk the codebase. Don't
 
 Apply the **deletion test** to anything you suspect is shallow: would deleting it concentrate complexity, or just move it? A "yes, concentrates" is the signal you want.
 
+**Evidence gates — both must hold before anything becomes a candidate:**
+
+- **Friction must be observed, not theoretical.** Cite the pain: the awkward call sites (`file:line`), the shotgun-surgery pattern ("these 4 files change together — check `git log --oneline -- <dir>`"), the test that needs 40 lines of setup to exercise one branch. "This could be cleaner" with no cited pain is not a candidate.
+- **Read before ruling.** A claim about a module you haven't opened this session is a hypothesis. Before ruling on the deletion test, read the module **and at least 2 of its call sites**. The operational form of the test: if every caller could call the layer below directly with no loss of clarity, the module fails — it's a pass-through. If deleting it would smear real logic (validation, ordering, error translation) across its callers, it passes.
+
 ### 2. Present candidates
 
 Present a numbered list of deepening opportunities. For each candidate:
 
 - **Files** — which files/modules are involved
 - **Problem** — why the current architecture is causing friction
+- **Evidence** — the observed friction, cited: the call sites you read (`file:line`), the co-changing files, the awkward tests. No citation, no candidate.
 - **Solution** — plain English description of what would change
 - **Benefits** — explained in terms of locality and leverage, and also in how tests would improve
+
+**Zero candidates is a valid outcome.** A healthy codebase produces a short or empty list. Report "no deepening opportunities found — here's what I checked" rather than padding the list with theoretical refactors to appear thorough.
 
 **Use `CONTEXT.md` vocabulary for the domain, and [LANGUAGE.md](LANGUAGE.md) vocabulary for the architecture.** If `CONTEXT.md` defines "Order," talk about "the Order intake module" — not "the FooBarHandler," and not "the Order service."
 
@@ -94,7 +102,7 @@ Side effects happen inline as decisions crystallize:
 
 **Claude:**
 1. **Explore.** Reads `CONTEXT.md` (sees `Order`, `OrderLine`, `Cart`) and `docs/adr/0004-validation-pipeline.md`. Spawns Explore on `src/orders/validation/` and finds 11 single-function modules (`validateSku.ts`, `validateQty.ts`, …) each called from one place in `OrderIntake`.
-2. **Candidates.** Presents one numbered candidate: "Collapse the `validate*` cluster into a deep `OrderIntakeValidator` module — current shallow validators have interface nearly as complex as implementation; the real bugs hide in how `OrderIntake` *composes* them, where no test exercises the seam." Files / Problem / Solution / Benefits. Notes: does not contradict ADR-0004 (which is about *when* to validate, not *how* to compose validators).
+2. **Candidates.** Presents one numbered candidate: "Collapse the `validate*` cluster into a deep `OrderIntakeValidator` module — current shallow validators have interface nearly as complex as implementation; the real bugs hide in how `OrderIntake` *composes* them, where no test exercises the seam." Files / Problem / Evidence (the `OrderIntake` call site read, plus the two `validate*` modules opened for the deletion test) / Solution / Benefits. Notes: does not contradict ADR-0004 (which is about *when* to validate, not *how* to compose validators).
 3. **Grilling.** User picks the candidate. Walks the design tree: dependency category (in-process, [DEEPENING.md](DEEPENING.md) §1), seam placement (one external seam at `OrderIntakeValidator`, internal validators stay private), test surface (assert at `validate(order) → Result<Order, ValidationError[]>`, delete the 11 per-function tests). Adds `OrderIntakeValidator` to `CONTEXT.md`.
 
 ### Example 2: A candidate that contradicts an ADR — but worth reopening
@@ -106,6 +114,8 @@ Side effects happen inline as decisions crystallize:
 ## Anti-patterns
 
 - ❌ Proposing a refactor without applying the **deletion test** — leads to suggestions that just move complexity instead of concentrating it.
+- ❌ Ruling on the deletion test from a module's name or the file listing. Read the module and ≥2 call sites first; until then it's a hypothesis, not a candidate.
+- ❌ Manufacturing candidates from theoretical concerns: ❌ _"`OrderMapper` could be more flexible"_ (no cited pain) vs. ✅ _"`OrderMapper`'s 3 call sites each re-wrap its output (`intake.ts:41`, `sync.ts:88`, `api.ts:120`) — the seam is in the wrong place."_ The first pads the list; the second names the friction.
 - ❌ Naming things "FooHandler" / "BarService" / "BazManager" when `CONTEXT.md` already names the concept. Use the domain term.
 - ❌ Introducing a port + adapter for a dependency with only one implementation. **One adapter = hypothetical seam.**
 - ❌ Re-litigating an ADR without explicit cause. ADRs are decisions the skill should _not_ reopen unless the constraint that drove them is gone.

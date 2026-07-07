@@ -32,3 +32,11 @@ Step-by-step guidance for Claude on how to handle the task.
 ## Notes
 
 Any caveats, edge cases, or things to watch out for.
+
+<!-- Author reminders (delete before shipping):
+- Description carries 3+ concrete trigger phrases — it's the only field Claude reads to decide.
+- Give every rule that matters a ❌/✅ pair (same output done badly, then well).
+- Any assertion the skill asks for needs an evidence gate — name the check that licenses it.
+- Report-producing skills: state "zero findings is a valid outcome".
+-->
+

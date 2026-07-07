@@ -125,10 +125,20 @@ If the user pushes back, revise and re-present. Do not partial-implement against
 
 Walk the plan one step at a time. For each step:
 
-1. **Make the smallest change that completes the step.** No drive-by refactors, no "while I'm here" fixes, no batched edits across multiple steps.
+0. **Re-anchor.** Re-read the `Goal` section and this step's validation criterion from `Plan` before touching anything. Thirty seconds of re-reading is what keeps turn 20 aligned with turn 1 — drift is silent and this is the only cheap defense.
+1. **Make the smallest change that completes the step.** No drive-by refactors, no "while I'm here" fixes, no batched edits across multiple steps. Done means the step's criterion, nothing more — improvements you notice (missing validation, refactor opportunity, extra config) go into `Risks` as findings, not into the diff.
 2. **Validate immediately.** Run the test, build, type-check, lint, curl the endpoint, or load the page — whichever signal is appropriate for that step. If there's no automated signal at all, say so explicitly in `Progress`; don't pretend there is one.
-3. **Tick the checkbox** with a one-line evidence note (`tests pass`, `dotnet build green`, `200 OK with expected body`).
+3. **Tick the checkbox** with evidence that is an **observed artifact from this turn** — a pasted output line, an exit code, a status code. A claim is not evidence.
+   - ❌ `tests pass` — an assertion; nothing was observed.
+   - ✅ `dotnet test → Passed! 42 passed, 0 failed, 0 skipped` — pasted from output you just saw.
+   If you didn't run it this turn, you can't tick it.
 4. **Re-emit the full per-turn output** before moving to the next step.
+
+When a command fails:
+
+- Read the **full** error output — the load-bearing detail is usually in the last lines you'd skim past.
+- Change exactly one thing based on what the error says, then retry once.
+- Two failures on the same step = stop. Add the verbatim error to `Risks` and surface to the user. Never retry verbatim, and never continue as if the command succeeded — a result you didn't observe is not a result.
 
 When a validation fails:
 
@@ -160,6 +170,9 @@ When every checkbox is ticked:
 - ❌ Convening the inspection council for a 3-file task. Ceremony for its own sake. Inline reads are the default — escalate only when the inspection set genuinely spans multiple layers.
 - ❌ Spawning the inspection sub-agents serially instead of in parallel — one message, N `Agent` calls. Serial defeats the context-protection rationale.
 - ❌ Letting a sub-agent slice overlap with another's. If two slices would re-read the same files, merge them first.
+- ❌ Ticking a checkbox with claimed evidence (`tests pass`) when the command wasn't run this turn. Evidence is pasted observation, not memory or assertion.
+- ❌ Retrying a failed command verbatim, or proceeding as if it succeeded. Read the error, change one thing, retry once; twice failed = `Risks` + stop.
+- ❌ Gold-plating a step: extra config options, defensive layers, speculative hooks the plan didn't call for. Findings go to `Risks`; the diff stays the size of the step.
 - ✅ Same six headers every turn, one step at a time, one validation per step, assumptions tracked explicitly until confirmed or killed.
 
 ## Examples

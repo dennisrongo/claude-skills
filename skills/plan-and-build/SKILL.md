@@ -32,6 +32,9 @@ If the feature is large, fuzzy, or still in discovery — defer to [`grill-with-
 Rules:
 
 - **One question at a time.** Wait for the answer before the next one. Use `AskUserQuestion` with 2–4 concrete options and a recommended pick first.
+- **A question earns its slot only if different answers lead to different designs.** Before asking, name (to yourself) what changes per answer. If every answer leads to the same next step, don't ask it — generic checklist questions burn the user's patience without buying design information.
+  - ❌ "Should this endpoint be secure and handle errors gracefully?" — every answer is "yes"; nothing about the design forks.
+  - ✅ "When an order loses priority, do we keep the history of who set it and when?" — "yes" needs an audit table, "no" is two columns. The answer picks the schema.
 - **Explore the codebase instead of asking** when the answer is already there. If a similar feature, entity, controller, or migration exists, read it before asking the user how a related thing should work.
 - **Sharpen fuzzy language.** When the user says "account", ask: "Customer or User? Those are different things here." When they say "cancel", ask whether that means soft-delete, hard-delete, or a status transition.
 - **Probe with concrete scenarios.** Invent edge cases that force the user to be precise. "What happens if the user submits twice while the first request is still in flight?"
@@ -114,7 +117,8 @@ Whether you drafted one plan or chose between two, the presented plan must inclu
    - Whether a backfill is required and how it's gated.
    - **Always end with:** "Migration file will be generated. No SQL, no `dotnet ef database update`, no `ExecuteSql*` calls will be run — the user runs the migration themselves."
 6. **Pattern reuse table.** Two columns: "New code I'm about to write" and "Existing example it follows" with a path. If a row has no existing example, justify the new pattern.
-7. **Open questions** still unresolved, if any. If there are any, loop back to Phase 1 — do not exit plan mode with open questions.
+7. **Validation signal per step.** Every build step names the observable signal that proves it done at plan time — a named test going green, `dotnet build` exiting 0, a `curl` returning the expected body. A step whose completion can't be observed isn't a step, it's a hope — split it or attach a signal before presenting.
+8. **Open questions** still unresolved, if any. If there are any, loop back to Phase 1 — do not exit plan mode with open questions.
 
 If Design It Twice ran, end the plan with: **"Considered alternative: `<approach B name>`. Rejected because `<one-line reason>`."** This lets the user redirect to B with a single sentence if they disagree.
 
@@ -125,6 +129,8 @@ Enter Plan Mode (`EnterPlanMode`) to present. Then exit with `ExitPlanMode` and 
 ### Phase 4 — Build (test-first when an API changes)
 
 Build in the order that gives you the fastest feedback loop.
+
+**The plan is a hypothesis about the codebase.** When execution contradicts it — the pattern Phase 2 found doesn't cover this case, the library API has a different shape, the file the plan modifies doesn't exist — stop. Do not improvise silently and keep typing. Re-plan the remaining steps against what you just learned, tell the user what deviated and why, and re-present via plan mode if the change is material (different files, different schema, a new dependency). A small deviation (a helper's actual name, a slightly different signature) just gets a one-line note in the Phase 6 report.
 
 **If the feature adds or changes an API endpoint, follow TDD:**
 
@@ -153,6 +159,7 @@ Build in the order that gives you the fastest feedback loop.
 - **Minimal comments.** Default to no comments. Only add one when the *why* is non-obvious (a workaround, a non-trivial invariant, a domain rule that isn't visible from the names). Never write block headers, never restate what the next line does, never leave `// TODO` without an issue link.
 - **Match formatting.** Use the project's brace style, naming, file headers, `using` placement. Don't reformat unrelated code.
 - **No dead code.** Don't commit commented-out lines or "for future use" stubs.
+- **Build to the plan, nothing more.** Done means the approved plan's acceptance criteria. No unrequested config options, no defensive layers the plan didn't ask for, no speculative extension points. Improvements you notice mid-build are findings for the Phase 6 report, not work to do.
 
 ### Phase 5 — Migrations (generate only, never execute)
 
@@ -207,7 +214,10 @@ When appending:
 ## Anti-patterns
 
 - ❌ Skipping Phase 1 and going straight to "let me read the code and start building" — the whole point of this skill is the grill.
+- ❌ Asking grill questions whose answers all lead to the same design. Every question must fork the design.
 - ❌ Exiting plan mode while open questions remain. Loop back instead.
+- ❌ Improvising silently when the codebase contradicts the plan. Stop, re-plan the remainder, tell the user what deviated.
+- ❌ Gold-plating the build: config options, abstraction layers, or "robustness" the plan never called for.
 - ❌ Writing production code before the test it makes pass (when the feature touches an API).
 - ❌ Creating `FooServiceTests2.cs` because `FooServiceTests.cs` already exists. Always append.
 - ❌ Inventing a new pattern for something the codebase already has a pattern for. If you can't find the precedent, ask before forking.

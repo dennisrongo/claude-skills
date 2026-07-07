@@ -46,7 +46,7 @@ Before composing the message, gather two pieces of context from the repo.
 1. Run `git rev-parse --abbrev-ref HEAD` to get the current branch name.
 2. Take the last `/`-separated segment of the branch (so `feature/12345-fix_this_bug` becomes `12345-fix_this_bug`).
 3. If that segment starts with one or more digits followed by `-`, `_`, or end-of-string, those leading digits are the ticket number.
-4. If no leading numeric ID is found, **omit `#<ticket>` from the message entirely** — do not invent one and do not prompt the user for it.
+4. If no leading numeric ID is found, **omit `#<ticket>` from the message entirely** — do not invent one, do not guess one from conversation context, do not reuse a stale number mentioned earlier in the session, and do not prompt the user for it. The branch name is the only source of truth for the ticket.
 
 Examples:
 
@@ -81,6 +81,11 @@ How to decide:
 3. Breaking changes get a `!` after the type / scope (e.g., `#12345 (API) feat!: drop support for Node 16`) and a `BREAKING CHANGE:` footer.
 4. Inner `type(scope)` is optional and usually redundant once `(PROJECT)` is present. Only use it when it adds real specificity beyond the project tag (e.g., `#12345 (API) fix(auth): ...` when "auth" narrows further than "API").
 5. Body explains the *why*, not the *what*. Wrap at 72 chars.
+6. The description states **what changed** at the level a reader scanning a changelog needs; the *why* goes in the body. A description that only restates the type ("fix bug") carries no information — rewrite it.
+   - ❌ `fix: fix bug in login`
+   - ✅ `fix: reject expired refresh tokens instead of issuing new access tokens`
+7. The type must match the **diff**, not the user's phrasing. The user saying "quick fix" while the staged diff adds a new endpoint means `feat`, not `fix`. Determine the type from `git diff --staged` output you actually read this session — never from the conversation summary or the user's wording alone.
+8. If the staged diff contains two unrelated changes (e.g., an auth bug fix plus a new export page), say so and suggest splitting into two commits — do not paper over it with a vague umbrella description like `chore: various updates`.
 
 ## Workflow
 
@@ -89,7 +94,7 @@ When the user asks for a commit message:
 1. Get the current branch with `git rev-parse --abbrev-ref HEAD` and extract the ticket number per the rules above.
 2. Inspect the staged diff: `git diff --cached` (or `git diff` if nothing is staged).
 3. From the changed file paths, determine the project tag — or decide to omit it.
-4. Categorize the change into one of the types.
+4. Categorize the change into one of the types — based on the diff you just read, not on how the user described the work.
 5. Write a concise description.
 6. If the change is non-trivial, add a body explaining the rationale.
 7. Flag breaking changes explicitly.
@@ -131,6 +136,8 @@ BREAKING CHANGE: clients reading `user.email` must update to `user.email_address
 - ❌ `Fix: Bug in login page.` (capitalized, trailing period)
 - ❌ `feat: added the ability to export CSV files` (past tense)
 - ❌ `#12345 (CLIENT) feat: added export.` (past tense + trailing period)
-- ❌ Inventing a ticket number when the branch doesn't have one
+- ❌ Inventing a ticket number when the branch doesn't have one — or guessing one from conversation context
+- ❌ `fix: quick fix per request` when the staged diff adds a new endpoint (type from the user's phrasing, not the diff — should be `feat`)
+- ❌ `chore: various updates` covering two unrelated changes — flag the split instead
 - ❌ Forcing a `(PROJECT)` tag when the diff doesn't actually map to API / CLIENT / CONSOLE / DB
 - ✅ `#12345 (CLIENT) feat: add CSV export`

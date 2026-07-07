@@ -60,6 +60,17 @@ Versions are resolved at scaffold time, never hard-pasted into the skill. Before
 3. Quote the resolved versions back to the user before generating, so they can object.
 4. Prefer the latest **stable** Next.js (App Router GA from 13.4; resolve current).
 5. Default to **pnpm** if `pnpm` is present, otherwise **npm**. Match `packageManager` in `package.json`.
+6. Concrete resolution command when context7 is unavailable: `npm view <pkg> version` (e.g. `npm view next version`; `npm view next-auth dist-tags` — plain `npm view next-auth version` returns the latest *stable*, which may still be v4; never scaffold v4). Never write a version you did not just resolve this session — no versions from memory, no `latest`/`^latest`, no invented numbers.
+7. **API-drift guard.** The version you resolved in this step decides the API shape — training-data memory is the least trustworthy source in this workflow. Highest-risk hallucination zones:
+   - NextAuth **v4 patterns are POISON here**: `authOptions` export, `getServerSession`, `NEXTAUTH_*` env vars, an options object in the `[...nextauth]` route. v5 is `const { handlers, auth, signIn, signOut } = NextAuth(config)` in `src/auth.ts`, with `AUTH_*` env vars.
+   - App Router signatures that changed across majors — e.g. in Next 15 `params`/`searchParams` are **Promises** in dynamic route segments and Route Handler contexts; check the resolved major before writing `params.id`. In `'use client'` pages read route params with `useParams()` from `next/navigation`, not the `params` prop.
+   - RTK Query / Redux Toolkit option names (`fetchBaseQuery` options, `providesTags`/`invalidatesTags` shapes) and the Prisma client API for the resolved major.
+   - Tailwind majors: v4 dropped the `tailwind.config.ts`-first setup for CSS-first config (`@import "tailwindcss"` + `@tailwindcss/postcss`); v3 uses `tailwind.config.ts` + `postcss.config.js`. Emit exactly one style — the one matching the resolved major — never a mix.
+   - Zod majors: v4 moved/renamed APIs (top-level `z.email()`, reworked error customization). A v3-only signature against a resolved v4 is a hallucination — check the installed types under `node_modules/zod`.
+   - Prisma majors: the `generator` block shape and default client output location changed across majors. After `prisma generate`, confirm the actual import path from what was generated — don't assume `@prisma/client` from memory.
+   - The shadcn CLI is `npx shadcn@latest` (`init` / `add`); the old `shadcn-ui` package name is dead.
+
+   If you are not certain a symbol exists in the resolved version, verify it (read the installed types under `node_modules/<pkg>/`, or check docs) **before** writing code that depends on it.
 
 ### Step 2 — Gather inputs (ask once, in one batch)
 
@@ -85,6 +96,7 @@ Use the **templates in [`references/templates/`](references/templates/)** as the
 - Create directories before files. On Windows shell use PowerShell `New-Item -ItemType Directory -Force`.
 - Do **not** run `create-next-app` to bootstrap — write files directly from templates so the layout matches [`references/folder-layout.md`](references/folder-layout.md). Use `npm`/`pnpm install` after `package.json` is written.
 - Initialize shadcn/ui by writing `components.json` from [`references/templates/components-json.md`](references/templates/components-json.md) and `src/components/ui/` components incrementally as needed (button, input, form, label, dialog, toast, etc.) — don't blanket-install every Radix primitive.
+- If a generator IS run (`shadcn` CLI, `prisma init`, or `create-next-app` at the user's insistence) and its output differs from this skill's layout: **the framework wins on file locations it mandates** (`middleware.ts` placement, `app/` conventions, `prisma/schema.prisma`), **this skill wins on everything the framework doesn't mandate** (redux layout, route groups, `_components`/`_hooks`). Reconcile deliberately and list every deviation in your report — never force the skill layout over a framework requirement, never silently abandon the skill's patterns.
 
 ### Step 4 — Database setup
 
@@ -97,6 +109,7 @@ After `package.json` and `prisma/schema.prisma` are written:
    - **Never run `prisma db push` against a production-shaped database.** Use migrations.
    - **Never run `prisma migrate reset` without explicit user confirmation** — it drops the DB.
 5. Generate `AUTH_SECRET` for the user: `pnpm exec auth secret` (Auth.js CLI) or `openssl rand -base64 32`. Put it in `.env.local` (NOT `.env.example`).
+6. Order is load-bearing: `prisma generate` MUST run before `pnpm typecheck` / `pnpm build` — the `@prisma/client` types don't exist until generated. If typecheck explodes with missing Prisma types, you skipped or mis-ordered this step; run generate, don't start rewriting imports.
 
 ### Step 5 — Verify and report
 
@@ -104,6 +117,8 @@ After `package.json` and `prisma/schema.prisma` are written:
 - `pnpm lint`. Must exit 0.
 - `pnpm test` (Vitest) if any tests were generated. Must exit 0.
 - `pnpm build`. Must succeed.
+- **A scaffold that hasn't built is not delivered.** Paste the actual proof lines in your report (Next's `✓ Compiled successfully`, Vitest's `Tests  N passed`). Never report success from memory of the steps you intended, and never report partial success as success — if something is red, say exactly what is red.
+- **CLI failure protocol** (applies to `pnpm install`, `prisma migrate`, `pnpm build`, etc.): read the full error output, change exactly one thing, retry once. If the same step fails twice, stop scaffolding and surface the verbatim error to the user — do not keep generating files on a broken base, and do not re-run the identical command hoping for a different result.
 - Reply with a short summary: project path, versions chosen, route groups, env vars to set (especially `AUTH_SECRET` and `DATABASE_URL`), next steps (`pnpm dev`, log in with the seeded test user if Credentials was chosen).
 
 ## Project layout (canonical)
@@ -302,7 +317,7 @@ For feature `{{Feature}}` in route group `{{Group}}` (e.g. `(app)`):
    - `_components/{{Feature}}Form.tsx` — `'use client'`, uses `useForm` + `zodResolver`, wraps `<UnsavedChangesWarning>`, dispatches create/update mutation on submit.
 7. **Tests**: `tests/unit/{{feature}}.schema.test.ts` (Zod schema valid + invalid). Optional handler test that mocks `db` and `auth`.
 
-After generating: `pnpm typecheck && pnpm test && pnpm build`.
+After generating: `pnpm typecheck && pnpm test && pnpm build`. Apply the Step-5 proof-and-failure protocol — paste the green lines; the same step failing twice = stop and surface the verbatim error.
 
 ### Mode 3 — `add-api-slice`
 
@@ -315,9 +330,26 @@ For domain `{{domain}}` (e.g. `customers`):
 5. Add the Prisma model(s) and migrate if needed.
 6. **Do not** create a new `createApi(...)`. One base `api`, many injected slices.
 
-After generating: `pnpm typecheck && pnpm build` must pass.
+After generating: `pnpm typecheck && pnpm build` must pass — Step-5 proof-and-failure protocol applies.
 
 ## Verification checklist before reporting "done"
+
+Run this as a **mechanical pass over the generated tree** — grep, don't recall. The forbidden list is easy to hold at file 1 and forgotten by file 30; do not answer any item from memory of what you intended to write. Start with this grep block — every command must return nothing:
+
+```bash
+grep -rn "'use server'" src/                                     # Server Actions
+grep -rn "export default async function" src/app --include='page.tsx'   # async pages
+grep -rn "from '@/lib/db'" src/app --include='*.tsx'             # DB access outside route.ts
+grep -rn "fetch(" src/app src/components --include='*.tsx'       # inline fetch in components
+grep -rn "serializableCheck: false\|@ts-ignore\|as any" src/redux src/app/api
+grep -rn "moment" src/ package.json                              # date-fns only
+grep -rn "NEXTAUTH_\|getServerSession\|authOptions\|next-auth/next" src/ .env.example   # NextAuth v4 leaking in
+grep -rn "styled-components\|@emotion" src/ package.json          # CSS-in-JS in a Tailwind project
+grep -rn "localStorage\|sessionStorage" src/                      # any token/session hit is a bug
+grep -rn "dangerouslySetInnerHTML" src/                           # zero on a fresh scaffold
+```
+
+A hit means fix it and re-run the grep — never rationalize it away. Then the full checklist:
 
 - [ ] `pnpm install` succeeds.
 - [ ] `pnpm exec prisma generate` succeeds.
@@ -330,7 +362,8 @@ After generating: `pnpm typecheck && pnpm build` must pass.
 - [ ] Every `route.ts` file in `src/app/api/**` (except `[...nextauth]`) calls `await auth()` or `await requireSession()`.
 - [ ] No `'use server'` directive anywhere. Grep: `grep -rn "'use server'" src/` returns nothing.
 - [ ] No `async function .*Page` in any `page.tsx`. Pages are sync `'use client'`.
-- [ ] No `serializableCheck: false`, `@ts-ignore`, `as any` in `src/redux/**` or `src/app/api/**`.
+- [ ] No `serializableCheck: false`, `@ts-ignore`, `as any` in `src/redux/**` or `src/app/api/**` (covered by the grep block above).
+- [ ] Exactly one `createApi(` in the codebase (the base `api`). Grep: `grep -rn "createApi(" src/` shows one hit.
 - [ ] `middleware.ts` exists at project root; its `config.matcher` excludes `/api/auth` (NextAuth handles its own routes).
 - [ ] `src/auth.ts` and `src/auth.config.ts` both exist. `auth.config.ts` has no `@/lib/db` import (Edge-safe).
 - [ ] `.env` is **not** committed; `.env.example` is. `AUTH_SECRET` is **not** in `.env.example` (it's documented as required, with instructions to generate it).

@@ -42,6 +42,17 @@ The user explicitly does **not** want a hard-coded `<TargetFramework>` baked int
 3. If unsure which is the current LTS, fetch the latest .NET support policy via context7 (`mcp__plugin_context7_context7__resolve-library-id` → `query-docs` for ".NET release schedule" / "dotnet support policy") or WebFetch `https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core`. Quote the version you picked back to the user before generating.
 4. Pin EF Core, ASP.NET Core, and `Microsoft.Extensions.*` package versions to the **latest stable for that TFM** — look them up via context7 (`Microsoft.EntityFrameworkCore`, `Microsoft.AspNetCore.Authentication.JwtBearer`, etc.) rather than guessing. Never hand-paste a version you don't have a source for.
 5. State the chosen TFM and package versions in your reply before writing files, so the user can object before scaffolding.
+6. Concrete resolution commands when context7 is unavailable: `dotnet package search <PackageId> --take 1` or WebFetch `https://api.nuget.org/v3-flatcontainer/<package-id-lowercase>/index.json` (last non-preview entry = latest stable). Never write a version string you did not just resolve this session — no versions from memory, no wildcards, no invented numbers.
+
+**API-drift guard.** The version you resolved in this step decides the API shape — training-data memory is the least trustworthy source in this workflow. Highest-risk hallucination zones:
+
+- EF Core APIs across majors (e.g. `HasCheckConstraint` moved into `ToTable(t => t.HasCheckConstraint(...))` in EF7; query/interceptor APIs get renamed between majors).
+- Hosted-service and `Host` builder idioms — `Host.CreateApplicationBuilder` (post-.NET 7) vs the older `CreateDefaultBuilder` callback style; don't mix the two.
+- TFM defaults: newer TFMs flip `<Nullable>` / `<ImplicitUsings>` behavior — templates must match the resolved TFM, not a remembered one.
+- OpenAPI/Swagger: .NET 9+ templates dropped Swashbuckle for built-in `Microsoft.AspNetCore.OpenApi` (`AddOpenApi()` / `MapOpenApi()`). Pick the approach matching the resolved TFM; never wire both.
+- Test stack majors: xunit v3 ships as the `xunit.v3` package with different runner wiring than `xunit` 2.x; AutoMapper 13+ self-registers (no `.Extensions.Microsoft.DependencyInjection` package). Match templates to what you resolved, not to package names from memory.
+
+If you are not certain a symbol exists in the resolved version, verify it (context7 docs lookup, or read the restored package surface under `~/.nuget/packages/`) **before** writing code that depends on it.
 
 ### Step 2 — Gather inputs (ask once, in one batch)
 
@@ -66,11 +77,16 @@ Use the **templates in `references/templates/`** as the source of truth for file
 - Create directories before files. On Windows shell use PowerShell `New-Item -ItemType Directory -Force`.
 - After scaffolding, run `dotnet sln add` for every project and `dotnet build` to verify the solution compiles. Report build output to the user.
 - Do **not** run `dotnet new` to create the projects — write the `.csproj` and `.cs` files directly from templates so the layout matches exactly.
+- If a `dotnet new` template IS run anyway (user's insistence): **the SDK wins on formats it owns** (`.sln` contents, `obj/`/`bin/` artifacts), **this skill wins on everything else** — overwrite template boilerplate with the skill's templates, keep this skill's project split and folder names. Reconcile deliberately and list every deviation in your report; never silently abandon the skill's patterns, never fight the SDK on formats it owns.
 
 ### Step 4 — Verify and report
 
-- Run `dotnet build` from the solution root. If it fails, fix and rebuild — never leave a broken scaffold.
+- Run `dotnet build` from the solution root. If it fails, fix the **first** error (later errors are usually cascade) and rebuild — never leave a broken scaffold.
 - Run `dotnet test` if any test project exists.
+- Do **not** run `dotnet ef migrations add` or `dotnet ef database update` yourself unless the user confirmed a reachable database — report the migration command as a next step instead. The delivery bar is the build gate, not the migration.
+- Known failure signature: `NETSDK1045` ("The current .NET SDK does not support targeting …") means the TFM you picked outruns the installed SDK — re-run `dotnet --list-sdks` and re-pin to the highest installed LTS; do not install a new SDK unprompted.
+- **A scaffold that hasn't compiled is not delivered.** Paste the actual proof lines in your report (`Build succeeded.` / `0 Error(s)`, and the `Passed! - Failed: 0` test summary). Never report success from memory of the steps you intended, and never report partial success as success — if something is red, say exactly what is red.
+- **CLI failure protocol** (applies to `dotnet new`, `dotnet sln add`, `dotnet build`, `dotnet test`): read the full error output, change exactly one thing, retry once. If the same step fails twice, stop scaffolding and surface the verbatim error to the user — do not keep generating files on top of a broken base, and do not re-run the identical command hoping for a different result.
 - Reply with a short summary: solution path, projects created, TFM chosen, package versions, next steps (e.g. "run `dotnet ef migrations add Initial -p src/{{Solution}}.Infrastructure -s src/{{Solution}}.Api`").
 
 ## Solution layout (canonical)
@@ -143,6 +159,9 @@ Every one of these is forbidden in generated code. See [`references/anti-pattern
    3. `src/{{Solution}}.Application/` (csproj + assembly marker + `Common/` with `IUserContext`, `Result<T>` if requested, `IUnitOfWork` port, `IRepository<T>` port).
    4. `src/{{Solution}}.Infrastructure/` (csproj + `Persistence/AppDbContext.cs` + `Persistence/EntityConfigurations/` folder + `Persistence/UnitOfWork.cs` + `Auth/UserContext.cs` + `DependencyInjection.cs` with `AddInfrastructure`).
    5. `src/{{Solution}}.Api/` (csproj + `Program.cs` + `Extensions/` folder + `Middlewares/ExceptionHandlerMiddleware.cs` + `Controllers/BaseController.cs` + `appsettings.json`/`appsettings.Development.json`).
+
+      **Checkpoint:** `dotnet sln add` items 1–5 and `dotnet build` now, before generating workers and tests — a failure here localizes to the core projects; a failure after the full tree does not. Apply the Step-4 failure protocol at this checkpoint too.
+
    6. `src/{{Solution}}.Workers.<Name>/` per worker requested.
    7. `tests/{{Solution}}.UnitTests/` (csproj + xUnit + NSubstitute + AutoFixture).
    8. `tests/{{Solution}}.IntegrationTests/` (csproj + `Microsoft.AspNetCore.Mvc.Testing` + `Testcontainers.MsSql`) — only if user asked for it.
@@ -173,7 +192,7 @@ For entity `{{Feature}}` (e.g. `Customer`):
 
 Template for the full slice is in [`references/templates/feature-slice.md`](references/templates/feature-slice.md).
 
-After generating: `dotnet build` then `dotnet test`. Both must pass.
+After generating: `dotnet build` then `dotnet test`. Both must pass — apply the Step-4 proof-and-failure protocol (paste the green lines; the same step failing twice = stop and surface the verbatim error).
 
 ### Mode 3 — `add-worker`
 
@@ -223,11 +242,29 @@ Look these up via context7 — do not hand-paste versions:
 - `Testcontainers.MsSql` (integration tests only)
 - `Microsoft.AspNetCore.Mvc.Testing` (integration tests only)
 
+## Final self-audit (mechanical — grep, don't recall)
+
+The **Eliminate** list is easy to hold at file 1 and forgotten by file 30. After generating and before the final build, grep the generated tree — every command must return nothing:
+
+```bash
+grep -rn "Thread.Sleep\|while (true)" src/                        # polling-loop workers
+grep -rnE "catch\s*(\(\s*Exception[^)]*\))?\s*\{\s*\}" src/       # swallowed exceptions
+grep -rn "ExpandoObject\|DataRow\|SqlDataAdapter" src/            # sproc-era / reflection data access
+grep -rn "GetService<" src/*/Program.cs                           # hosted services booted by hand
+grep -rn "Newtonsoft" src/                                        # unless a dependency demanded it
+grep -rln "public async Task" src/ | xargs grep -Ln "CancellationToken"   # async surface with no ct anywhere
+grep -rn "System.Data.Entity\|\"EntityFramework\"" src/           # EF6 leaking into an EF Core solution
+grep -rn "CreateDefaultBuilder" src/                               # mixed host-builder idioms
+grep -rn "/// <summary>" src/                                      # XML doc blocks on internal members
+```
+
+A hit means fix it and re-run the grep — never rationalize it away or report it as acceptable.
+
 ## Verification checklist before reporting "done"
 
 - [ ] `dotnet build` exits 0.
 - [ ] `dotnet test` exits 0 (if tests were generated).
-- [ ] No `.csproj` references violate the ONION rule (verify with `grep`/`Select-String` for cross-layer `ProjectReference`).
+- [ ] No `.csproj` references violate the ONION rule. Concrete check: `grep "ProjectReference" src/*/*.csproj` — Domain shows zero hits, Application references only Domain, Api/Workers never reference each other.
 - [ ] No file contains any pattern from the **Eliminate** list.
 - [ ] `Program.cs` is under ~50 lines (everything else is in extension methods).
 - [ ] Domain project's `.csproj` has zero `<ProjectReference>` entries.
