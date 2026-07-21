@@ -38,13 +38,17 @@ If the file is missing: infer what you can (`gh repo view --json defaultBranchRe
 1. Assigned in this repo: `gh issue list --assignee @me --state open --json number,title,state,milestone,labels`
 2. Across repos/orgs: `gh search issues --assignee @me --state open --json repository,number,title`
 3. Milestone (sprint equivalent): add `--milestone "<name>"`. Projects v2 board: `gh project item-list <number> --owner <owner> --format json` (needs the `project` scope: `gh auth refresh -s project`).
+4. An empty JSON array is a **valid answer** — "nothing assigned" — not a failure. Report it as such; don't silently widen the query or invent likely-looking issues to fill the table. (Auth failures exit non-zero — distinguish by exit code, never by emptiness.)
 
 ### Read an issue (text + screenshots)
 
 1. `gh issue view <N> --json title,body,state,labels,milestone,comments` — the body is markdown.
 2. Extract image URLs from the body: `https://github.com/user-attachments/assets/<uuid>` and legacy `user-images.githubusercontent.com/...` patterns (in both `![...](url)` markdown and `<img src>` HTML).
 3. Download each — attachment URLs on private repos require auth, so pass the token: `curl -sL -H "Authorization: token $(gh auth token)" -o <scratchpad>/imgN.png <url>` — then Read the images to view them. Associate each image with its position in the body text when reporting.
-4. Follow `--json comments` for follow-up screenshots and clarifications — acceptance criteria often live in comments, not the body.
+4. **An image you did not successfully open is "not viewed" — never describe, summarize, or infer its contents.** The issue text around an image is not evidence of what the image shows. A failed or suspect download (HTML instead of image bytes, 0-byte file) is reported with the exact URL and error, not papered over.
+   - ❌ "The screenshot shows the misaligned header." (download returned a login page that was never checked)
+   - ✅ "Viewed 3 of 4 screenshots. The 4th (`.../assets/9f2c…`) returned HTML despite the auth header — not viewed; here's what the surrounding text claims it shows."
+5. Follow `--json comments` for follow-up screenshots and clarifications — acceptance criteria often live in comments, not the body. Quote acceptance criteria **verbatim**, never paraphrased — the load-bearing token is usually the exact field name, status code, or copy string, and paraphrase drops it.
 
 ### Publish branch + create PR (apply ALL configured house defaults)
 
@@ -79,6 +83,9 @@ If the file is missing: infer what you can (`gh repo view --json defaultBranchRe
 - ❌ Hardcoding owners, repos, or reviewer usernames in commands you suggest saving — everything org-specific belongs in `.claude/github.json`.
 - ❌ Parsing `gh`'s human-readable output — always `--json` with explicit fields, and `--paginate` on raw `gh api` list calls.
 - ❌ Fetching private-repo attachment URLs without the auth header — you get an HTML login page, not the image; check the file is actually an image before Reading it.
+- ❌ Describing a screenshot you never opened, or narrating image contents from the surrounding issue text — "not viewed" is the only honest label.
+- ❌ Treating an empty `gh issue list` result as an error and silently broadening the query — zero assigned issues is an answer.
+- ❌ Paraphrasing acceptance criteria into your own words — quote them; the exact token is the requirement.
 - ❌ Using a closing keyword (`Closes #N`) on an issue that should stay open after merge — that silently closes it; use `Refs #N`.
 - ❌ Cross-referencing sibling PRs as bare `#N` across repos — it resolves to the wrong item; use `owner/repo#N`.
 - ❌ Creating a single PR for a multi-repo change, or omitting configured reviewers / auto-merge / issue link.
@@ -88,4 +95,5 @@ If the file is missing: infer what you can (`gh repo view --json defaultBranchRe
 
 - `gh` respects the repo of the CWD; pass `--repo <owner>/<name>` explicitly when operating outside it (e.g. cross-repo scripts).
 - Scope errors ("missing required scopes") name the fix: `gh auth refresh -s <scope>` — say which scope, don't retry variants.
+- Any other failing `gh` call: read stderr verbatim, change exactly the one thing it names, retry once. A second failure on the same call = stop and report the quoted error — never cycle through flag variants hoping one lands, never proceed as if it ran.
 - GitHub has no required-reviewer flag on a PR; "required" is enforced by branch protection / CODEOWNERS. If the user asks for required reviewers, check whether CODEOWNERS covers the paths and say what actually enforces it.

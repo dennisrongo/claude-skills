@@ -41,12 +41,17 @@ If the file is missing: get org/project from `az devops configure -l` if default
 1. Open items assigned to the user:
    `az boards query --wiql "SELECT [System.Id], [System.WorkItemType], [System.Title], [System.State], [System.IterationPath] FROM WorkItems WHERE [System.AssignedTo] = @Me AND [System.State] NOT IN ('Closed', 'Removed', 'Done') ORDER BY [System.ChangedDate] DESC" -o table`
 2. Sprint filter: add `AND [System.IterationPath] = '<project>\Sprint <N>'` (include all states for a full sprint picture).
+3. Zero rows is a **valid answer** — "nothing assigned there" — not a malformed query. Report it as such; never silently rewrite the WIQL or pad the table with plausible items. If you suspect the iteration path is wrong, verify it (`az boards iteration project list`) and say what you found — don't guess a different sprint name.
 
 ### Read a work item (text + screenshots)
 
 1. `az boards work-item show --id <N> -o json` — parse the JSON; the description is HTML in `fields.'System.Description'`. Add `--expand relations` for linked items.
 2. Extract attachment GUIDs from the description HTML: regex `attachments/([0-9a-f-]{36})\?fileName=([^"&]+)`.
 3. Download each: `az devops invoke --area wit --resource attachments --route-parameters project=<projectId-or-name> id=<guid> --query-parameters fileName=image.png download=true --accept-media-type application/octet-stream --out-file <scratchpad>/imgN.png -o none`, then Read the images to view them. Associate each image with its position in the description text when reporting.
+4. **An image you did not successfully open is "not viewed" — never describe, summarize, or infer its contents.** The description text around an attachment is not evidence of what the attachment shows. A 0-byte file, an error payload, or a failed `az devops invoke` is reported with the exact GUID and error — check the downloaded file is real image bytes before Reading it.
+   - ❌ "The screenshot shows the validation error on save." (download failed; the claim came from the description text)
+   - ✅ "Viewed 2 of 3 attachments. The 3rd (`c41a…`) downloaded 0 bytes — not viewed; the description text next to it says it shows the save error."
+5. Quote acceptance criteria **verbatim** from the description/comments (strip the HTML tags, keep the exact words) — paraphrase drops the load-bearing token: the exact field name, state value, or error string.
 
 ### Publish branch + create PR (apply ALL configured house defaults)
 
@@ -90,10 +95,13 @@ WIQL `WHERE [System.AssignedTo] = '<Display Name>'` → take any returned item �
 - ❌ Piping az output straight into `ConvertFrom-Json` — stderr warnings pollute it. Capture `2>&1 | Out-String` and regex-check (e.g. for `"pullRequestId"`) before parsing.
 - ❌ Using `az rest` when auth is PAT-based — it requires a full `az login`.
 - ❌ Creating a single PR for a multi-repo work item, or omitting configured reviewers/auto-complete/work-item link.
+- ❌ Describing an attachment you never downloaded and opened — "not viewed" plus the exact error is the only honest report.
+- ❌ Treating zero WIQL rows as a broken query and rewriting it unasked — an empty sprint is an answer.
 - ✅ Config-driven values, JSON-out + programmatic parsing, house PR defaults every time, verify after every mutation.
 
 ## Notes
 
 - If a call fails with "requires user authentication", it's a PAT scope gap — name the missing scope (Identity Read for email resolution, Member Entitlement for user list) rather than retrying variants.
+- Any other failing `az` call: read the full stderr, change exactly the one thing it names, retry once. A second failure on the same call = stop and report the quoted error — never cycle through flag or API-version variants hoping one lands, never proceed as if it ran.
 - Attachment downloads work with a plain PAT via `az devops invoke`; browser-only URLs (`https://dev.azure.com/...attachments/...`) are not fetchable directly.
 - On Windows, `az` may not be on PATH — the config's `azPath` should then hold the full path to `az.cmd`, invoked from PowerShell as `& "<azPath>" ...`.

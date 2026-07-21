@@ -19,7 +19,7 @@ Do **not** use for reviewing an existing PR (use `pr-review`) or for local-only 
 
 ### 0. Anchor
 
-State in one line: work item/ticket id, branch name, and every repo the change touches. If the work item id is unknown, ask — it drives the PR title, the work-item link, and the sibling grouping. Multi-repo detection: a change described as one task with commits carrying the same `#<id>` across repos is ONE work item → one PR **per repo**, never one PR spanning repos and never several PRs in one repo for the same id.
+State in one line: work item/ticket id, branch name, and every repo the change touches. The id comes from the branch name or the commit subjects you read this session (`git log --oneline <target>..HEAD`) — never from memory of the conversation, and never a number mentioned earlier for different work. If neither carries one, ask — it drives the PR title, the work-item link, and the sibling grouping; an invented id links the PR to someone else's ticket. Multi-repo detection: a change described as one task with commits carrying the same `#<id>` across repos is ONE work item → one PR **per repo**, never one PR spanning repos and never several PRs in one repo for the same id.
 
 ### 1. Preflight
 
@@ -28,9 +28,9 @@ State in one line: work item/ticket id, branch name, and every repo the change t
 
 ### 2. Review gate — before publishing, not after
 
-- Run the `pr-review` skill on the branch if installed (grouped by task id); otherwise perform a focused diff review of the branch against its target.
+- Run the `pr-review` skill on the branch if installed (grouped by task id); otherwise perform a focused diff review of the branch against its **configured target** (`git diff <targetBranch>...HEAD`) — a diff against the wrong base reviews commits that aren't yours or misses ones that are.
 - If SQL files changed, also run `sql-review` if installed.
-- **Blocking findings stop the flow.** Each blocker is either fixed, or explicitly waived by the user — a waiver is recorded in the PR description ("Known issue: X — accepted because Y"). Zero findings is a valid outcome; proceed.
+- **Blocking findings stop the flow** — but "blocker" carries a burden of proof: name the concrete failure scenario in one sentence ("user does X → wrong Y"). No scenario → it's a suggestion, and suggestions don't stop the flow. Each real blocker is either fixed, or explicitly waived by the user — a waiver is recorded in the PR description ("Known issue: X — accepted because Y"). Zero findings is a valid outcome; proceed.
 - ❌ "Reviewed — looks good" with no findings listed and no diff quoted → that's recognition, not review.
 - ✅ "pr-review: 0 blocking, 2 suggestions (deferred, listed in PR body). Proceeding."
 
@@ -39,6 +39,8 @@ State in one line: work item/ticket id, branch name, and every repo the change t
 `git push -u origin <branch>` per repo — **only with user approval; never push unasked.** One approval can cover all repos of the same work item if the user says so.
 
 ### 4. Create — provider detected from the remote URL
+
+Detect from `git remote get-url origin` output you ran this session — the remote decides, not the tooling installed (`gh` being on PATH doesn't make this a GitHub repo).
 
 - **Azure DevOps** (`dev.azure.com` / `visualstudio.com`): follow the `azure-devops` skill — house defaults from `.claude/azure-devops.json` (target branch, title pattern, required reviewers, auto-complete, work-item link).
 - **GitHub** (`github.com`): follow the [`github`](../github/SKILL.md) skill — house defaults from `.claude/github.json` (target branch, title pattern, reviewers, auto-merge, issue link via closing keyword).
@@ -49,6 +51,7 @@ State in one line: work item/ticket id, branch name, and every repo the change t
   4. **Deploy order / coupling** — for multi-repo: which PR merges/deploys first and why (e.g. DB schema before API, API before client).
   5. **Sibling PRs** — links to the other repos' PRs for this work item.
 - Multi-repo sequencing: create all PRs first, then edit each description to add the sibling links (they don't exist until created).
+- **When a push or create call fails:** read the full error, change exactly one thing it names, retry once. A second failure on the same call = stop and report the exact error — never retry verbatim, never move to the next repo as if it succeeded. A partial multi-repo state ("2 of 3 PRs created; repo X failed on: <quoted error>") is reported as exactly that, never rounded up to done.
 
 ### 5. Verify — a setting you didn't check is not set
 
@@ -80,5 +83,8 @@ Re-read each PR after creation: required reviewers actually marked required, wor
 - ❌ Pushing or creating PRs without explicit approval for the push.
 - ❌ One PR spanning multiple repos, or omitting configured reviewers / auto-complete / work-item link "to save time".
 - ❌ Reporting "PR created with required reviewers" without re-reading the PR to confirm — creation calls can partially fail.
+- ❌ Guessing the work item id from conversation memory — branch and commits are the source of truth; neither has it → ask.
+- ❌ Calling a finding a blocker with no failure scenario attached — no scenario, no stop.
+- ❌ Rounding a partial multi-repo result up to success — "2 of 3 created" is the honest report.
 - ❌ PR bodies that narrate the diff file-by-file instead of stating intent, testing, and coupling.
 - ✅ Review gate → approved push → per-repo PRs with verified house defaults → cross-referenced siblings → URL table.
