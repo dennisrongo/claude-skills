@@ -17,8 +17,10 @@ Do **not** use when the user is present and wants to approve the plan — that's
 
 ## The autonomy contract
 
-1. **No questions.** Never call `AskUserQuestion`; never enter a plan-approval gate. Every question you *would* have asked becomes an ASSUMPTIONS entry: the question, the answer chosen, why, and the blast radius if wrong. Choose the assumption that (a) matches the codebase's existing patterns, and (b) is cheapest to reverse. When those conflict, prefer reversible.
-2. **Hard stops only** — halt and report (do not improvise) when: the next step is destructive or hard to reverse (data deletion, force push, dropping schema objects, external side effects); required access/credentials are missing; or the task as written contradicts the codebase so fundamentally that both interpretations are expensive. A hard stop still produces the full report with state-so-far and the one decision needed to resume.
+1. **No questions.** Never call `AskUserQuestion`; never enter a plan-approval gate. Every question you *would* have asked becomes an ASSUMPTIONS entry: the question, the answer chosen, why, and the blast radius if wrong. Choose the assumption that (a) matches the codebase's existing patterns, and (b) is cheapest to reverse. When those conflict, prefer reversible. "Matches the codebase" is an evidence claim, not a vibe — cite the instance you found (`file:line`); if you searched and found no precedent, say so and justify by reversibility alone.
+   - ❌ "Assumed camelCase keys — matches project conventions." (no instance cited — that's a style guess wearing evidence's clothes)
+   - ✅ "Assumed camelCase keys — every existing DTO in `src/api/dto/` uses them (e.g. `UserDto.ts:12`). Blast radius: one serializer config line."
+2. **Hard stops only** — halt and report (do not improvise) when: the next step is destructive or hard to reverse (data deletion, force push, dropping schema objects, external side effects); required access/credentials are missing; or the task as written contradicts the codebase so fundamentally that both interpretations are expensive. The stop-vs-assume test: *would a wrong guess destroy data, publish something externally, or cost more to undo than redoing the whole task?* No → assume and log; yes → hard stop. A hard stop still produces the full report with state-so-far and the one decision needed to resume.
 3. **Never commit, push, or create PRs.** The deliverable is a verified working tree plus the report. The human gets the final gate.
 4. **Scope is the task, exactly.** Adjacent problems you notice go in the report's "Found along the way" list — not into the diff.
 5. **All verification doctrine applies**: a result you did not observe is "not run", never "passed"; quote the evidence.
@@ -35,7 +37,9 @@ Inspect the code the task touches (use `task-executor`'s inspection discipline; 
 
 ### Phase 2 — Execute incrementally
 
-One increment at a time; observed verification after each before the next. A mid-course finding that contradicts the plan → re-plan (log the change and reason), don't push through. Track assumptions as they accumulate — an assumption load-bearing for 3+ increments gets re-verified against the code, not carried on faith.
+One increment at a time; observed verification after each before the next. Before starting each increment, restate the Phase 0 one-liner — if the increment doesn't serve it, the plan has drifted: re-plan, don't push through. A mid-course finding that contradicts the plan → re-plan (log the change and reason). Track assumptions as they accumulate — an assumption load-bearing for 3+ increments gets re-verified against the code, not carried on faith, and an assumption that rests on *another* assumption multiplies both blast radii: re-verify the base one before stacking a third on top.
+
+**Command-failure protocol (autonomous variant).** A command fails → read the full error output, change exactly one thing it names, retry once. A second failure on the same step means the approach is wrong, not the luck: re-plan the increment around it, or hard stop if there's no route — never loop retries hoping for a different result, and never continue as if it passed. With nobody watching, silent retry-thrash burns the run and confabulated success poisons the report; both are worse than an honest stop.
 
 ### Phase 3 — Test
 
@@ -47,7 +51,7 @@ Run the `code-review` skill if installed (else a focused diff review). Autonomou
 
 ### Phase 5 — Report (the deliverable)
 
-In order: **Outcome** (one sentence — done / done-with-caveats / hard-stopped where). **What changed** (files + why). **Evidence** (quoted test/build/run output per the doctrine tags: verified/inferred/assumed). **Review outcome** (findings, fixes applied, anything remaining). **ASSUMPTIONS table** (question → choice → why → blast radius). **Found along the way.** **Your move** (the commit/PR steps deliberately left to the human, ready to paste).
+In order: **Outcome** (one sentence — done / done-with-caveats / hard-stopped where). "Done" is earned only when every phase exit was observed; a single `not run`, an unexplained test failure, or a surviving blocker makes it "done-with-caveats" *with the caveat named in the same sentence* — never buried three sections down. **What changed** (files + why). **Evidence** (quoted test/build/run output per the doctrine tags: verified/inferred/assumed). **Review outcome** (findings, fixes applied, anything remaining). **ASSUMPTIONS table** (question → choice → why → blast radius). **Found along the way.** **Your move** (the commit/PR steps deliberately left to the human, ready to paste).
 
 ## Launching autonomously (harness side)
 
@@ -78,5 +82,7 @@ The skill removes *its* gates; the harness must not add prompts back:
 - ❌ Applying suggestion-level review findings unattended — fix blockers only; log the rest.
 - ❌ Soft-stopping on mere ambiguity ("the spec doesn't say which format") — choose per the contract, log it, continue.
 - ❌ Reporting "done" with unobserved checks, or burying a failed suite in the middle of the report.
+- ❌ Retrying a failing command verbatim until it "passes" — one change, one retry, then re-plan or stop.
+- ❌ Logging an assumption as "matches codebase conventions" with no `file:line` — that's a guess with a paper trail.
 - ❌ Expanding scope because the code "really needed it" — the task, exactly; the rest is a list item.
 - ✅ Zero questions, zero commits, observed evidence for every claim, assumptions on the record, human decides what ships.
