@@ -11,3 +11,5 @@ coverage/
 *.tgz
 .env
 .env.*
+__pycache__/
+*.pyc
