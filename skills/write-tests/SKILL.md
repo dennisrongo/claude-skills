@@ -10,7 +10,7 @@ Author tests whose only job is to fail when the behavior breaks. Everything else
 ## When to use this skill
 
 - The user says "write tests", "add tests", "test this", "add coverage", "unit test this", "add a regression test", "TDD this", "characterization tests", or "/write-tests".
-- A feature just landed without tests, or plan-and-build / task-executor hands off a test-writing step.
+- A feature just landed without tests, or task-executor hands off a test-writing step.
 - The user wants to change untested legacy code safely (pin first, then change — composes with `safe-refactor`).
 
 Do **not** auto-trigger when the user is debugging a failing test (`diagnose`) or reviewing test quality in a diff (`code-review`, `pr-review`).

@@ -1,6 +1,6 @@
 ---
 name: upgrade-deps
-description: Upgrade project dependencies safely — inventories current→target versions from the actual manifest/lockfile, reads the real changelog/release notes for every major bump (a breaking-change claim without a changelog citation is a hypothesis), greps the codebase for each breaking API before declaring it safe, upgrades one major at a time with tests+build quoted green between batches, and reports a per-package table of what changed and what evidence backs "safe". Use this skill whenever the user says "upgrade dependencies", "update packages", "bump <package>", "is it safe to upgrade", "update to the latest", "fix the npm audit", "dependabot PR review", or "/upgrade-deps" — even if they don't explicitly say "dependency skill". Do not use for adding a NEW dependency (that's a design decision — plan-and-build) or diagnosing a breakage after an upgrade already happened (use diagnose).
+description: Upgrade project dependencies safely — inventories current→target versions from the actual manifest/lockfile, reads the real changelog/release notes for every major bump (a breaking-change claim without a changelog citation is a hypothesis), greps the codebase for each breaking API before declaring it safe, upgrades one major at a time with tests+build quoted green between batches, and reports a per-package table of what changed and what evidence backs "safe". Use this skill whenever the user says "upgrade dependencies", "update packages", "bump <package>", "is it safe to upgrade", "update to the latest", "fix the npm audit", "dependabot PR review", or "/upgrade-deps" — even if they don't explicitly say "dependency skill". Do not use for adding a NEW dependency (that's a design decision) or diagnosing a breakage after an upgrade already happened (use diagnose).
 ---
 
 # Upgrade Deps
@@ -13,7 +13,7 @@ Upgrade dependencies as a verification exercise, not a version-number edit. The 
 - A CVE or audit finding requires moving a package (composes with `security-review`).
 - A framework/runtime upgrade (Node LTS, .NET major, Next.js major) that drags dependencies with it.
 
-Do **not** auto-trigger for adding a new dependency (a design choice — route to `plan-and-build` / `grill-with-docs`) or for debugging an already-broken upgrade (`diagnose`). If the repo has no tests at all, say up front that upgrade safety cannot be verified beyond compile — and ask whether to proceed anyway or pin a minimal net first (`write-tests`).
+Do **not** auto-trigger for adding a new dependency (a design choice) or for debugging an already-broken upgrade (`diagnose`). If the repo has no tests at all, say up front that upgrade safety cannot be verified beyond compile — and ask whether to proceed anyway or pin a minimal net first (`write-tests`).
 
 ## Workflow
 

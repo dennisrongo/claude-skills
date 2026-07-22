@@ -1,6 +1,6 @@
 ---
 name: task-executor
-description: Disciplined execution loop for a single defined task — Understand → Inspect → Plan → Execute incrementally → Validate after every change → Track assumptions → Update progress. Forces a strict per-turn output format (Goal / Current understanding / Files to inspect / Plan / Progress / Risks / Assumptions) so the work stays legible and resumable instead of devolving into ad-hoc edits. When the inspection set spans multiple layers (controller + service + persistence + tests), Phase 2 convenes an **inspection council**: parallel `Explore` sub-agents — one per layer — each map their slice and return `file:line`-cited findings on existing patterns, wiring points, and sibling test classes; the main session aggregates the results into `Current understanding` so the working context window stays free for execution. Small inspection sets skip the council. Enters Plan Mode after inspection and gates on `ExitPlanMode` approval before writing any code. Each incremental change is followed by a validation step (run the test, build, type-check, or curl the endpoint) before moving to the next checkbox. Use this skill whenever the user says "/task-executor", "Work on task: <description>", "task-executor", or hands you a single concrete task to execute with discipline — even if they don't name the skill. Do **not** auto-trigger on greenfield feature design with a fuzzy spec — use [`plan-and-build`](../plan-and-build/SKILL.md) instead, which interviews the user to design the feature before this skill's executional discipline applies.
+description: Disciplined execution loop for a single defined task — Understand → Inspect → Plan → Execute incrementally → Validate after every change → Track assumptions → Update progress. Forces a strict per-turn output format (Goal / Current understanding / Files to inspect / Plan / Progress / Risks / Assumptions) so the work stays legible and resumable instead of devolving into ad-hoc edits. When the inspection set spans multiple layers (controller + service + persistence + tests), Phase 2 convenes an **inspection council**: parallel `Explore` sub-agents — one per layer — each map their slice and return `file:line`-cited findings on existing patterns, wiring points, and sibling test classes; the main session aggregates the results into `Current understanding` so the working context window stays free for execution. Small inspection sets skip the council. Enters Plan Mode after inspection and gates on `ExitPlanMode` approval before writing any code. Each incremental change is followed by a validation step (run the test, build, type-check, or curl the endpoint) before moving to the next checkbox. Use this skill whenever the user says "/task-executor", "Work on task: <description>", "task-executor", or hands you a single concrete task to execute with discipline — even if they don't name the skill. Do **not** auto-trigger on greenfield feature design with a fuzzy spec — this skill assumes the spec is given.
 ---
 
 # Task Executor
@@ -15,11 +15,11 @@ A discipline for working on a single, already-defined task. The task is given; t
 
 Do **not** use this skill for:
 
-- Fuzzy or greenfield feature work where the spec still needs grilling. Use [`plan-and-build`](../plan-and-build/SKILL.md) for that — it includes the interview phase this skill skips.
+- Fuzzy or greenfield feature work where the spec still needs grilling — this skill assumes the spec is given.
 - Bug diagnosis. Use [`diagnose`](../diagnose/SKILL.md).
 - One-line fixes, renames, doc edits — the per-turn output format is more ceremony than value at that size.
 
-If the user invokes this skill on a spec that turns out fuzzy mid-flight, stop and recommend `plan-and-build` rather than pretending the spec is clear.
+If the user invokes this skill on a spec that turns out fuzzy mid-flight, stop and ask the user to clarify the spec before proceeding.
 
 ## The per-turn output format (non-negotiable)
 
@@ -68,7 +68,7 @@ If the conversation runs long and the sections grow, **compact** rather than tru
 
 ### Phase 1 — Understand
 
-Restate the task back to the user in your own words inside the `Goal` section of the first turn. Surface anything ambiguous as a `Risks` item or, if it blocks design, ask **one** clarifying question with `AskUserQuestion`. Do not interview broadly — this skill assumes the spec is given. If you find yourself with more than two clarifying questions, stop and recommend `plan-and-build`.
+Restate the task back to the user in your own words inside the `Goal` section of the first turn. Surface anything ambiguous as a `Risks` item or, if it blocks design, ask **one** clarifying question with `AskUserQuestion`. Do not interview broadly — this skill assumes the spec is given. If you find yourself with more than two clarifying questions, stop and ask the user to tighten the spec.
 
 Specifically capture in `Current understanding`:
 
@@ -163,7 +163,7 @@ When every checkbox is ticked:
 - ❌ Batching multiple plan steps into a single change and ticking them together. The validation-per-step is the discipline; collapsing it loses the value.
 - ❌ Treating an unconfirmed inference as `Current understanding`. Anything you're betting on without evidence is an `Assumption` until proven.
 - ❌ Drifting from the strict header set ("here's a quick update" prose-only turns). One ad-hoc turn becomes ten.
-- ❌ Running this skill on a fuzzy spec. Stop and route to [`plan-and-build`](../plan-and-build/SKILL.md) — its Phase 1 grill is what's missing.
+- ❌ Running this skill on a fuzzy spec. Stop and ask the user to clarify before proceeding.
 - ❌ Exiting Plan Mode while the plan still has open questions or assumptions that materially change the design.
 - ❌ Continuing past a failed validation. A red test is a Phase-4 stop, not a TODO for later.
 - ❌ Inventing new abstractions when an existing pattern in the repo would have answered the same need. The inspection phase exists to prevent this.
@@ -193,7 +193,7 @@ When every checkbox is ticked:
 
 **User:** "/task-executor — Build the subscription management area."
 
-**Claude:** First turn opens with the six headers anyway. `Goal` restates what the user said. `Current understanding` flags that "subscription management area" is undefined (pages? roles? actions? entry point?). `Risks` lists three or four concrete ambiguities. Then a single short paragraph at the end: "This spec is too fuzzy for `task-executor`. Recommend dropping into [`plan-and-build`](../plan-and-build/SKILL.md) — its Phase 1 grill is what's needed before this skill's discipline applies. Want me to switch?"
+**Claude:** First turn opens with the six headers anyway. `Goal` restates what the user said. `Current understanding` flags that "subscription management area" is undefined (pages? roles? actions? entry point?). `Risks` lists three or four concrete ambiguities. Then a single short paragraph at the end: "This spec is too fuzzy for `task-executor` — I need a clearer definition before I can execute with discipline. Can you narrow down what 'subscription management area' means (pages, roles, actions, entry point)?"
 
 ### Example 3: A validation fails mid-execution
 
@@ -203,6 +203,5 @@ When every checkbox is ticked:
 
 ## Notes
 
-- This skill composes downward from [`plan-and-build`](../plan-and-build/SKILL.md): once `plan-and-build` lands an approved plan, you can hand the steps to `task-executor` for the disciplined incremental execution. The skills overlap in Plan Mode usage but differ in upstream phases — `plan-and-build` interviews and detects stack; `task-executor` assumes the spec is given and forces output discipline every turn.
 - The six-header format is deliberately rigid. It's the part of the skill that loses value the moment you let it slip — one ad-hoc turn breaks the contract.
 - If the task is small enough that the six-section output dwarfs the actual work, the task is too small for this skill. Just do it.

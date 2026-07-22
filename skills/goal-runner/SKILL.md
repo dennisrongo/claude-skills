@@ -14,7 +14,7 @@ The multi-task loop behind a `/goal` run: take a task file, work it top to botto
 - A `/goal` condition that names a roadmap or task file
 - "/goal-runner"
 
-Do **not** auto-trigger for a single defined task (`autopilot` / `task-executor`), for building one fuzzy feature (`plan-and-build`), or for interval-scheduled reruns (`loop`).
+Do **not** auto-trigger for a single defined task (`autopilot` / `task-executor`) or for interval-scheduled reruns (`loop`).
 
 ## The contract
 
