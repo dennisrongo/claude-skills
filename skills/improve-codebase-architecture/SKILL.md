@@ -1,6 +1,6 @@
 ---
 name: improve-codebase-architecture
-description: Surface architectural friction in a codebase and propose **deepening opportunities** — refactors that turn shallow modules into deep ones, informed by the project's `CONTEXT.md` glossary and `docs/adr/` decisions. Walks the codebase with an Explore sub-agent, applies the **deletion test** to suspected pass-through modules, presents a numbered list of candidates with files / problem / solution / benefits, and drops into a grilling loop once the user picks one — naming new concepts into `CONTEXT.md` inline and offering an ADR only when a rejection is load-bearing. Composes with `grill-with-docs` (glossary + ADR discipline) and `plan-and-build` (implementation handoff). Writes no production code. Use this skill whenever the user says "improve architecture", "improve the architecture", "architecture review", "find refactoring opportunities", "find deepening opportunities", "find shallow modules", "make this more testable", "this code is hard to navigate", or invokes `/improve-codebase-architecture` — even if they don't name the skill.
+description: Surface architectural friction in a codebase and propose **deepening opportunities** — refactors that turn shallow modules into deep ones, informed by the project's `CONTEXT.md` glossary and `docs/adr/` decisions. Walks the codebase with an Explore sub-agent, applies the **deletion test** to suspected pass-through modules, presents a numbered list of candidates with files / problem / solution / benefits, and drops into a grilling loop once the user picks one — naming new concepts into `CONTEXT.md` inline and offering an ADR only when a rejection is load-bearing. Writes no production code. Use this skill whenever the user says "improve architecture", "improve the architecture", "architecture review", "find refactoring opportunities", "find deepening opportunities", "find shallow modules", "make this more testable", "this code is hard to navigate", or invokes `/improve-codebase-architecture` — even if they don't name the skill.
 ---
 
 # Improve Codebase Architecture
@@ -19,8 +19,7 @@ Trigger on any of:
 
 Do **not** auto-trigger for:
 
-- A request to *implement* a specific refactor — use [`plan-and-build`](../plan-and-build/SKILL.md).
-- A request to *design* a new feature — use [`grill-with-docs`](../grill-with-docs/SKILL.md), then `plan-and-build`.
+- A request to *implement* a specific refactor — use [`task-executor`](../task-executor/SKILL.md).
 - A bug or regression — use [`diagnose`](../diagnose/SKILL.md).
 - A line-by-line review of a specific diff — use [`pr-review`](../pr-review/SKILL.md).
 
@@ -88,9 +87,9 @@ Once the user picks a candidate, drop into a grilling conversation. Walk the des
 
 Side effects happen inline as decisions crystallize:
 
-- **Naming a deepened module after a concept not in `CONTEXT.md`?** Add the term to `CONTEXT.md` with the same discipline as [`grill-with-docs`](../grill-with-docs/SKILL.md) Phase 3 (`CONTEXT.md — pure glossary`). Create the file lazily if it doesn't exist.
+- **Naming a deepened module after a concept not in `CONTEXT.md`?** Add the term to `CONTEXT.md` as a pure glossary entry. Create the file lazily if it doesn't exist.
 - **Sharpening a fuzzy term during the conversation?** Update `CONTEXT.md` right there. Don't batch.
-- **User rejects the candidate with a load-bearing reason?** Offer an ADR, framed as: _"Want me to record this as an ADR so future architecture reviews don't re-suggest it?"_ Only offer when the reason would actually be needed by a future explorer to avoid re-suggesting the same thing — skip ephemeral reasons ("not worth it right now") and self-evident ones. Use the ADR template from [`grill-with-docs`](../grill-with-docs/SKILL.md) Phase 3.
+- **User rejects the candidate with a load-bearing reason?** Offer an ADR, framed as: _"Want me to record this as an ADR so future architecture reviews don't re-suggest it?"_ Only offer when the reason would actually be needed by a future explorer to avoid re-suggesting the same thing — skip ephemeral reasons ("not worth it right now") and self-evident ones.
 - **Want to explore alternative interfaces for the deepened module?** See [INTERFACE-DESIGN.md](INTERFACE-DESIGN.md).
 - **Need to choose how to test across a dependency?** See [DEEPENING.md](DEEPENING.md) for the four dependency categories and the test strategy each demands.
 
@@ -109,7 +108,7 @@ Side effects happen inline as decisions crystallize:
 
 **User:** `/improve-codebase-architecture`
 
-**Claude:** Surfaces a candidate to merge `WebhookDispatcher` and `WebhookRetryQueue`. Notes _"contradicts ADR-0012 — but worth reopening because the original split was justified by sync delivery, and the codebase has since moved to async."_ User confirms ADR-0012 is stale. Hands off the actual merge to [`plan-and-build`](../plan-and-build/SKILL.md); updates `CONTEXT.md` with the unified `WebhookDelivery` term and notes that ADR-0012 needs a superseding ADR (best written via [`grill-with-docs`](../grill-with-docs/SKILL.md) if the user wants the rationale captured).
+**Claude:** Surfaces a candidate to merge `WebhookDispatcher` and `WebhookRetryQueue`. Notes _"contradicts ADR-0012 — but worth reopening because the original split was justified by sync delivery, and the codebase has since moved to async."_ User confirms ADR-0012 is stale. Hands off the actual merge to [`task-executor`](../task-executor/SKILL.md); updates `CONTEXT.md` with the unified `WebhookDelivery` term and notes that ADR-0012 needs a superseding ADR.
 
 ## Anti-patterns
 
@@ -125,7 +124,6 @@ Side effects happen inline as decisions crystallize:
 
 ## Notes
 
-- **Composes with** [`grill-with-docs`](../grill-with-docs/SKILL.md): the grilling loop in Step 3 uses the same `CONTEXT.md` and ADR discipline; reach for `grill-with-docs` if a deepening conversation reveals fuzzy domain terminology that needs a dedicated pass.
-- **Composes with** [`plan-and-build`](../plan-and-build/SKILL.md): hand off the chosen candidate (with its decided interface) to `plan-and-build` for the implementation. This skill writes no production code.
+- **Composes with** [`task-executor`](../task-executor/SKILL.md): hand off the chosen candidate (with its decided interface) to `task-executor` for the implementation. This skill writes no production code.
 - **Composes with** [`pr-review`](../pr-review/SKILL.md): use `pr-review` for line-by-line review of a specific diff; this skill is for surfacing architecture-level refactors *before* any diff exists.
-- Adapted from Matt Pocock's [`improve-codebase-architecture`](https://github.com/mattpocock/skills/tree/main/skills/engineering/improve-codebase-architecture) — same architecture vocabulary, deletion test, deepening process, and parallel interface design. Adapted to point at this repo's [`grill-with-docs`](../grill-with-docs/SKILL.md) for `CONTEXT.md` and ADR format conventions (which mattpocock/skills splits into separate files), and to compose with the other skills in this library.
+- Adapted from Matt Pocock's [`improve-codebase-architecture`](https://github.com/mattpocock/skills/tree/main/skills/engineering/improve-codebase-architecture) — same architecture vocabulary, deletion test, deepening process, and parallel interface design. Adapted to compose with the other skills in this library.

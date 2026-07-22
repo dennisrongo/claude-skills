@@ -11,7 +11,7 @@ An API contract is a promise made to code you can't see and can't fix. This skil
 
 - The user says "review this API", "API design review", "is this a breaking change", "check backward compat", "review the contract", "review this OpenAPI spec", "/api-contract-review".
 - A new endpoint, GraphQL type, gRPC service, webhook payload, or event schema is being added or changed.
-- `plan-and-build` is designing an endpoint and the contract deserves its own pass before implementation.
+- An endpoint is being designed and the contract deserves its own pass before implementation.
 
 Do **not** auto-trigger for internal function signatures or module interfaces (that's `code-review` / `improve-codebase-architecture` territory) — this skill is for surfaces crossed by consumers who deploy independently: HTTP APIs, published events, webhooks, SDK-facing types.
 
@@ -63,5 +63,5 @@ Do **not** auto-trigger for internal function signatures or module interfaces (t
 ## Notes
 
 - Spec-first repos (OpenAPI/proto/GraphQL SDL): review the spec diff as the contract and verify the implementation actually matches it (spot-check one handler against its spec entry — drift between the two is itself a finding). Code-first repos: the serialized DTOs + routes are the contract.
-- Deprecation over deletion: when a breaking change is genuinely wanted, the recommendation is the repo's existing versioning/deprecation mechanism if one exists (grep for it) — inventing a versioning strategy is a `grill-with-docs` conversation, not a review finding.
+- Deprecation over deletion: when a breaking change is genuinely wanted, the recommendation is the repo's existing versioning/deprecation mechanism if one exists (grep for it) — inventing a versioning strategy is a design conversation, not a review finding.
 - Apply `think-like-fable`: the risk lives in the unknown consumers, so compat verdicts get the re-derivation effort; "safe" claims are labeled by what was actually diffed; the report leads with the one change the user must not merge as-is.

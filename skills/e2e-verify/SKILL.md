@@ -10,7 +10,7 @@ Close the loop between "the diff looks right" and "a user can actually do the th
 ## When to use this skill
 
 - The user says "verify this in the browser", "test it end to end", "e2e test this", "write playwright tests", "run expect", "smoke test the UI", "does it actually work", "/e2e-verify".
-- A feature from `plan-and-build` / `task-executor` is done and needs proof beyond unit tests; `code-review` or `ship-it` wants runtime evidence.
+- A feature from `task-executor` is done and needs proof beyond unit tests; `code-review` or `ship-it` wants runtime evidence.
 
 Do **not** auto-trigger for unit/integration authoring (`write-tests`), debugging an already-failing e2e test (`diagnose`), or general browser automation that isn't testing.
 

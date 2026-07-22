@@ -18,7 +18,7 @@ Produce a durable onboarding artifact — the document past-you wishes you'd wri
 Do **not** auto-trigger for:
 
 - Architecture refactor suggestions → [`improve-codebase-architecture`](../improve-codebase-architecture/SKILL.md)
-- Feature design or implementation → [`plan-and-build`](../plan-and-build/SKILL.md)
+- Feature implementation → [`task-executor`](../task-executor/SKILL.md)
 - Bug triage → [`diagnose`](../diagnose/SKILL.md)
 - A specific diff review → [`pr-review`](../pr-review/SKILL.md) or [`code-review`](../code-review/SKILL.md)
 - Session hand-off (different artifact, session-scoped) → [`handoff`](../handoff/SKILL.md)
@@ -115,5 +115,4 @@ If making this teammate-accessible would help, mention `ShareOnboardingGuide` �
 
 - **Composes with** [`improve-codebase-architecture`](../improve-codebase-architecture/SKILL.md): an onboarding pass often surfaces shallow-module clusters worth a deepening review. Hand the user a pointer; don't propose refactors here.
 - **Composes with** [`handoff`](../handoff/SKILL.md): `ONBOARDING.md` is project-level orientation (durable across many sessions); a handoff is session-level state. Different artifacts, both useful.
-- **Composes with** [`grill-with-docs`](../grill-with-docs/SKILL.md): if exploration surfaces fuzzy domain terminology, a follow-up grilling pass to populate `CONTEXT.md` makes future onboarding sharper.
 - `ShareOnboardingGuide` (when available in the environment) uploads `ONBOARDING.md` and returns a teammate-shareable link. Optional; user-initiated.

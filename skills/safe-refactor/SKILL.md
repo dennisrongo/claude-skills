@@ -1,6 +1,6 @@
 ---
 name: safe-refactor
-description: Execute a behavior-preserving refactor with a proof of preservation — establishes a safety net first (existing tests or new characterization tests over every touched path), locks a baseline green run, then moves in small always-green steps where each step is one mechanical transformation, and treats any needed assertion change as a smuggled behavior change to surface, not fix. Use this skill whenever the user says "refactor this", "clean this up without changing behavior", "extract this into", "restructure this module", "rename this across the codebase", "inline this", "split this function/class", or "/safe-refactor" — even if they don't explicitly say "refactoring skill". Do not use for choosing WHAT to refactor (use improve-codebase-architecture) or for changes that are supposed to alter behavior (use plan-and-build).
+description: Execute a behavior-preserving refactor with a proof of preservation — establishes a safety net first (existing tests or new characterization tests over every touched path), locks a baseline green run, then moves in small always-green steps where each step is one mechanical transformation, and treats any needed assertion change as a smuggled behavior change to surface, not fix. Use this skill whenever the user says "refactor this", "clean this up without changing behavior", "extract this into", "restructure this module", "rename this across the codebase", "inline this", "split this function/class", or "/safe-refactor" — even if they don't explicitly say "refactoring skill". Do not use for choosing WHAT to refactor (use improve-codebase-architecture) or for changes that are supposed to alter behavior (use task-executor).
 ---
 
 # Safe Refactor
@@ -13,7 +13,7 @@ Execute a refactor as a sequence of proofs, not a rewrite. "Behavior-preserving"
 - `improve-codebase-architecture` produced an approved deepening candidate and the user says "do it".
 - A feature task requires restructuring existing code before the new behavior can land (do the refactor as its own phase, this skill governs that phase only).
 
-Do **not** auto-trigger for changes meant to alter behavior — bug fixes, feature work, "improve this error message" — those are `plan-and-build` / `task-executor` territory. If the user's "refactor" turns out to include behavior changes, split the work: refactor first under this skill, behavior change after, never interleaved.
+Do **not** auto-trigger for changes meant to alter behavior — bug fixes, feature work, "improve this error message" — those are `task-executor` territory. If the user's "refactor" turns out to include behavior changes, split the work: refactor first under this skill, behavior change after, never interleaved.
 
 ## Workflow
 
