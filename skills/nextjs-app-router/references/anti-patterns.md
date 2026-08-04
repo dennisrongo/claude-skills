@@ -2,7 +2,7 @@
 
 Each entry below explains **what** the pattern looks like in the wild, **why** it's bad, and **what to do instead**. The skill must not emit any of these. If a user explicitly requests one, push back with the rationale before complying.
 
-> **About the SPA-style choice.** This project is deliberately API-driven, not SSR. Pages are `'use client'`. Data goes through RTK Query → Route Handlers. That choice eliminates a whole class of "is this server or client?" bugs, makes mocking trivial in tests, and matches how the team thinks about the app (frontend + backend with a clean HTTP seam). Several anti-patterns below exist *because* of that choice — they're not absolute rules in every Next.js project, but they are absolute rules in this one.
+> **About the SPA-style choice.** This project is deliberately API-driven, not SSR. Pages are `'use client'`. Data goes through RTK Query → Route Handlers. That choice eliminates a whole class of "is this server or client?" bugs, makes mocking trivial in tests, and keeps a clean frontend/backend split with an explicit HTTP seam. Several anti-patterns below exist *because* of that choice — they're not absolute rules in every Next.js project, but they are absolute rules in this one.
 
 ## 1. `fetch()` or `await db.*` inside a server component
 
@@ -113,7 +113,7 @@ The stack is Tailwind utilities + Radix primitives + `class-variance-authority` 
 
 ## 12. Duplicate-by-case folders or files
 
-`src/models/StateReports/` and `src/models/statereports/` work on Windows (case-insensitive) and break on Linux (case-sensitive). Enforce one canonical casing.
+`src/models/UserProfile/` and `src/models/userprofile/` work on Windows (case-insensitive) and break on Linux (case-sensitive). Enforce one canonical casing.
 
 ## 13. `dangerouslySetInnerHTML` without server-side sanitization
 
@@ -137,9 +137,9 @@ A scaffolded project should not contain any `dangerouslySetInnerHTML` calls.
 
 A token in `localStorage` is reachable from any XSS payload. NextAuth's session cookie is `httpOnly` by default — leave it that way. Do not add `js-cookie` and write parallel auth state to a readable cookie.
 
-## 16. A `src/proxy.ts` (or equivalent) standing in for `middleware.ts`
+## 16. A hand-rolled interceptor file (e.g. `src/proxy.ts`) standing in for `middleware.ts`
 
-Next.js has exactly one place that intercepts requests: `middleware.ts` at the project root. A `src/proxy.ts` that imports `next/server` and exports a function but isn't wired into the framework is dead code that *looks* like a guard. Either move its logic into `middleware.ts` or delete it.
+Next.js has exactly one place that intercepts requests: `middleware.ts` at the project root. Any file that imports `next/server` and exports a request-guard function but isn't wired into the framework is dead code that *looks* like a guard. Either move its logic into `middleware.ts` or delete it.
 
 ## 17. Inline `fetch` in components
 
@@ -250,7 +250,7 @@ Add `@typescript-eslint/recommended`, `react-hooks/recommended`, `jsx-a11y/recom
 
 ## 30. Per-feature client guards as the only auth check
 
-A `<AuthExpirationHandler>` running on an interval is **not** the primary guard. The primary guard is `middleware.ts`. Client guards exist to handle session expiry mid-app — belt-and-suspenders, not the gate.
+A client component polling session expiry on an interval is **not** the primary guard. The primary guard is `middleware.ts`. Client guards exist to handle session expiry mid-app — belt-and-suspenders, not the gate.
 
 ## 31. PM2 / `ecosystem.config.js` without considering simpler hosting
 

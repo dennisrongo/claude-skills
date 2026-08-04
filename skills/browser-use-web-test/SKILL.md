@@ -46,7 +46,7 @@ What it does:
 
 ### ⚠️ The PYTHONPATH pitfall
 
-If another application sets a global `PYTHONPATH` pointing at its own venv (e.g., Hermes Agent on Windows, pyenv wrappers on macOS), it leaks into any new venv and breaks `pydantic_core`:
+If another application sets a global `PYTHONPATH` pointing at its own venv (some Windows apps export one system-wide; pyenv wrappers on macOS), it leaks into any new venv and breaks `pydantic_core`:
 
 ```
 ModuleNotFoundError: No module named 'pydantic_core._pydantic_core'

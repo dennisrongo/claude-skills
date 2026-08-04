@@ -7,9 +7,9 @@
 #   bash skills/maestro-mobile-test/scripts/run_flow.sh <avd-name> <flow.yaml> [backend_port]
 #
 # Examples:
-#   bash skills/maestro-mobile-test/scripts/run_flow.sh kids-chore-phone .maestro/navigation/tab-nav.yaml
-#   bash skills/maestro-mobile-test/scripts/run_flow.sh kids-chore-phone .maestro/suites/regression.yaml 8888
-#   bash skills/maestro-mobile-test/scripts/run_flow.sh kids-chore-phone .maestro/suites/smoke.yaml ""  # no backend
+#   bash skills/maestro-mobile-test/scripts/run_flow.sh my-avd .maestro/navigation/tab-nav.yaml
+#   bash skills/maestro-mobile-test/scripts/run_flow.sh my-avd .maestro/suites/regression.yaml 8888
+#   bash skills/maestro-mobile-test/scripts/run_flow.sh my-avd .maestro/suites/smoke.yaml ""  # no backend
 
 set -euo pipefail
 

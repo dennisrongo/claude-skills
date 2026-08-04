@@ -66,7 +66,7 @@ The layout below is the source of truth for `scaffold-app`. Every rule has a rea
     │   │   └── commands.rs       # get_settings, save_settings_command, reset_settings_command
     │   ├── platform/
     │   │   ├── mod.rs            # re-exports + #[cfg(target_os)] gated module decls
-    │   │   ├── traits.rs         # PermissionChecker, FileOpener, TextInserter, WaveformWindowBuilder
+    │   │   ├── traits.rs         # e.g. PermissionChecker, FileOpener, OverlayWindowBuilder — one trait per OS-specific behavior
     │   │   ├── macos.rs          # #[cfg(target_os = "macos")] impls
     │   │   ├── windows.rs        # #[cfg(target_os = "windows")] impls
     │   │   ├── linux.rs          # #[cfg(target_os = "linux")] impls
@@ -92,7 +92,7 @@ The layout below is the source of truth for `scaffold-app`. Every rule has a rea
 
 ### `src-tauri/src/` is modular, not monolithic
 
-A flat `src-tauri/src/main.rs` + huge `lib.rs` becomes unmaintainable past ~1500 lines. Splitting by feature folder (`audio/`, `history/`, `whisper/`, …) keeps related code together and lets `cargo test --test <name>` target one slice. The pattern enforces "one purpose per module" by making bloated modules awkward — you can't easily add a tenth file to a folder that's already named for something specific.
+A flat `src-tauri/src/main.rs` + huge `lib.rs` becomes unmaintainable past ~1500 lines. Splitting by feature folder (`export/`, `history/`, `sync/`, …) keeps related code together and lets `cargo test --test <name>` target one slice. The pattern enforces "one purpose per module" by making bloated modules awkward — you can't easily add a tenth file to a folder that's already named for something specific.
 
 ### `commands/` is its own module, not scattered across feature folders
 
@@ -116,7 +116,7 @@ Conflating these leads to "settings holds the app handle" coupling that breaks t
 
 Anti-pattern: a command body that branches on `cfg!(target_os = "macos")`. Every command grows the branch count, tests have to mock the OS, and platform-specific dependencies leak across the codebase.
 
-Pattern: define a trait in `platform/traits.rs` (`PermissionChecker`, `FileOpener`, `TextInserter`). Implement it in `platform/macos.rs`, `windows.rs`, `linux.rs` (each gated with `#[cfg(target_os = "...")]`). Expose `Send + Sync` wrappers via `platform/wrappers.rs` that Tauri's `State<>` can manage. Commands receive `State<'_, PlatformPermissionChecker>` and never see `cfg!`.
+Pattern: define a trait in `platform/traits.rs` (`PermissionChecker`, `FileOpener`, `AutostartManager`). Implement it in `platform/macos.rs`, `windows.rs`, `linux.rs` (each gated with `#[cfg(target_os = "...")]`). Expose `Send + Sync` wrappers via `platform/wrappers.rs` that Tauri's `State<>` can manage. Commands receive `State<'_, PlatformPermissionChecker>` and never see `cfg!`.
 
 Tests can then assert `Send + Sync` on the wrappers and substitute mock impls.
 
@@ -132,7 +132,7 @@ use common::*;
 
 ### Capability files per window
 
-Tauri 2 capabilities are scoped per window. `capabilities/default.json` covers the `main` window. Auxiliary windows (overlay, waveform, settings popup) get their own capability files. This matters because each window should only have the permissions it actually uses — a transparent overlay window does not need `fs:allow-write-file`.
+Tauri 2 capabilities are scoped per window. `capabilities/default.json` covers the `main` window. Auxiliary windows (overlay, settings popup, tray panel) get their own capability files. This matters because each window should only have the permissions it actually uses — a transparent overlay window does not need `fs:allow-write-file`.
 
 ### Icons are in `src-tauri/icons/`, not `src/assets/`
 
