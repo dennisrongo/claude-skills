@@ -8,6 +8,7 @@ How the coordinator composes each sub-agent prompt, and the report format it hol
 - Every sub-agent claim is "not run" until its evidence is quoted in front of you.
 - One task in flight; one writer to the tree. Parallelism is for reads.
 - The goal one-liner ("this task needs ___ so that ___") heads every brief you write — an agent that doesn't know *why* optimizes the wrong thing.
+- Spawn each agent on the model Phase 0's routing resolution named for its role; a spawn that fails over its model falls down the chain (then to no override) — routing never blocks a task.
 - Answer-first: every close-out note and the final report lead with the outcome, then the evidence.
 
 ## Scout brief (read-only; 0–3 in parallel)
