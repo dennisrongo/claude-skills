@@ -37,18 +37,31 @@ Drive the loop the way a rigorous senior engineer runs a team — the judgment b
 1. **Read the task beneath the words.** Before spawning anything, restate: "this task needs ___ so that ___". If the second blank won't fill from the roadmap and nearby docs, pick the cheapest-to-reverse reading and log it as an assumption — or mark BLOCKED if every reading is expensive to undo.
 2. **Spend agents where the risk lives.** Effort scales with blast radius, not task length — a wording fix gets one coder and one reviewer; a task touching auth, money, migrations, or 3+ layers gets the full fan-out:
 
-   | Role | Count | Parallel? | Deploy when |
-   |---|---|---|---|
-   | Scout (read-only) | 0–3 | with each other | task touches >2 files or an unfamiliar layer — one scout per question, not per whim |
-   | Coder | exactly 1 | never | every task — sole writer to the tree |
-   | Reviewer | 1, or 2–3 lenses | lenses with each other | split into lenses (correctness / design / tests) when the diff is large or touches auth/data/money |
-   | Fixer | 0–1 | no | review produced blockers — gets the coder brief plus the findings, nothing else |
+   | Role | Count | Parallel? | Model (routing chain) | Deploy when |
+   |---|---|---|---|---|
+   | Scout (read-only) | 0–3 | with each other | `scout` | task touches >2 files or an unfamiliar layer — one scout per question, not per whim |
+   | Coder | exactly 1 | never | `coder`; `coder_high_risk` when the task trips the blast-radius test above | every task — sole writer to the tree |
+   | Reviewer | 1, or 2–3 lenses | lenses with each other | `reviewer` | split into lenses (correctness / design / tests) when the diff is large or touches auth/data/money |
+   | Fixer | 0–1 | no | `fixer`; second cycle → top of `coder_high_risk` | review produced blockers — gets the coder brief plus the findings, nothing else |
+
+   The Model column resolves per [Model routing](#model-routing) when a model inventory exists; without one, spawn with no model override.
 
 3. **Front-load the riskiest unknown.** Ask: what discovery would invalidate the whole approach? That is scout question #1 — answered before the coder starts, not after it fails.
 4. **Sub-agent reports are testimony, not truth.** Quoted command output or a `file:line` citation upgrades a claim to evidence; anything else stays a hypothesis. Two agents disagreeing is signal — resolve it by re-deriving yourself (open the file, run the command), never by picking the more confident voice.
 5. **Guard your own context.** The coordinator's window holds orchestration state — queue position, evidence ledger, assumptions. Details live and die inside sub-agents; that is *why* the main agent never codes.
 
 Compose every sub-agent prompt from the briefs in [references/agent-briefs.md](references/agent-briefs.md) — each lists what the prompt MUST contain and the report format the coordinator holds the agent to.
+
+## Model routing
+
+`~/.claude/model-inventory.json` (written by the `model-inventory` skill, when installed) maps roles to model fallback chains — strongest as escalation, cheapest that suffices as default. Resolve it **once** in Phase 0, then pass each spawn's model explicitly. Routing is optional plumbing: **it never blocks or pauses the run** — every failure below degrades to "no override" (sub-agents inherit the session model) with a one-line note, and the coordinator never edits the inventory file.
+
+1. **Trust gate.** Use the inventory only if the file parses, `probed` is true, and `generated_at` is under 7 days old. Malformed, stale, or unprobed → treat as absent and note "run /model-inventory to re-enable routing" in the kickoff.
+2. **Free sanity check — never probes.** If the model-inventory skill's `scripts/scan.sh` is installed, run it (zero tokens, seconds): a cached CLI whose binary or auth signal has since vanished is dropped from routing for this run; a new CLI it finds is noted for a later rescan. No live model probes mid-run — probes cost money and belong to `/model-inventory`.
+3. **Resolution.** Per role, take the chain's first entry not marked `unavailable` / `blocked-by-auth` / `quota-exhausted`. Pass only bare aliases (`haiku`/`sonnet`/`opus`/`fable`) to the Agent tool's `model` param — skip anything else in a chain (a dated id or hand-edit is treated as absent). State the resolution in the kickoff message.
+4. **Spawn-failure fallback.** A spawn rejected over its model (entitlement, quota, unknown alias) falls to the next chain entry; chain exhausted → spawn with no override. Log it in the run report — never mark a task BLOCKED over routing.
+5. **Escalation ladder.** The coder uses `coder_high_risk` only when the task trips the existing blast-radius test — same judgment, no new decision point. A second fix cycle escalates the fixer to the top of `coder_high_risk` before the task may be declared blocked: the cheap retry is a stronger model, not a third identical attempt.
+6. **The goal text outranks the table.** "use opus for everything" in the goal text beats every chain. `bash_workers` entries (opencode, qwen, …) are **not** spawn targets — this loop spawns via the Agent tool only.
 
 ## Workflow
 
@@ -58,6 +71,7 @@ Compose every sub-agent prompt from the briefs in [references/agent-briefs.md](r
 2. **Parse the tasks.** Checkbox lines (`- [ ]`) are the queue, in file order. If the file has prose tasks but no checkboxes, rewrite it into checkbox form first and show the user the parsed list in the kickoff message.
 3. **Baseline the suite.** Run the project's test suite once before task 1 and quote the summary line. Pre-existing failures belong to the baseline, not to task 1.
 4. **Confirm git posture.** State in the kickoff message whether the goal text authorized commits and/or pushes (contract rules 3–4). If commits are authorized: note the current branch and read `git log --oneline -5` to learn the project's commit-message convention — follow it (work-item format if the project uses one, otherwise a descriptive subject naming the roadmap task).
+5. **Resolve sub-agent models** per [Model routing](#model-routing) and state the per-role resolution (or "no inventory — session model throughout") in the kickoff message.
 
 ### Per-task loop
 
@@ -102,6 +116,6 @@ Compose every sub-agent prompt from the briefs in [references/agent-briefs.md](r
 
 ## Notes
 
-- Composes with: `autopilot` (per-task execution discipline), `code-review` (the review gate), `write-tests` (when a task is itself "add tests"), `handoff` (context survival). All optional — the loop degrades to focused sub-agent prompts when they're absent.
+- Composes with: `autopilot` (per-task execution discipline), `code-review` (the review gate), `write-tests` (when a task is itself "add tests"), `model-inventory` (per-role model routing), `handoff` (context survival). All optional — the loop degrades to focused sub-agent prompts when they're absent.
 - The built-in `/goal` command supplies persistence (a Stop hook that blocks ending until the condition holds); this skill supplies the discipline. It works without the hook too — the loop just becomes stoppable.
 - Zero unchecked tasks at kickoff is a valid outcome: report "roadmap already complete" with the file's state; don't invent work.
