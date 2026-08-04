@@ -67,7 +67,7 @@ fi
 echo "Installing browser-use + playwright..."
 # shellcheck disable=SC1090
 source "$ACTIVATE"
-unset PYTHONPATH  # prevent venv leakage (Windows: Hermes; macOS: pyenv, etc.)
+unset PYTHONPATH  # prevent venv leakage from apps that export a global PYTHONPATH (pyenv wrappers, etc.)
 
 uv pip install "browser-use>=0.13,<0.14" "playwright>=1.60,<1.62" 2>/dev/null || pip install "browser-use>=0.13,<0.14" "playwright>=1.60,<1.62"
 

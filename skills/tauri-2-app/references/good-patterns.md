@@ -23,7 +23,7 @@ One module per concern (`commands/`, `state/`, `storage/`, `platform/`, `setting
 
 ### Trait-based platform abstractions
 
-`platform/traits.rs` defines `PermissionChecker`, `FileOpener`, `TextInserter`, etc. `platform/macos.rs|windows.rs|linux.rs` implement them gated with `#[cfg(target_os = "...")]`. Wrappers in `platform/wrappers.rs` implement `Send + Sync` and are managed in Tauri State.
+`platform/traits.rs` defines `PermissionChecker`, `FileOpener`, `AutostartManager`, etc. `platform/macos.rs|windows.rs|linux.rs` implement them gated with `#[cfg(target_os = "...")]`. Wrappers in `platform/wrappers.rs` implement `Send + Sync` and are managed in Tauri State.
 
 **Why:** Without this, `cfg!(target_os = "...")` checks scatter through command bodies, untestable and tedious to audit. The trait gives one place to swap behavior per OS and a clean seam for mocking in tests.
 
@@ -87,7 +87,7 @@ fn main() { {{app_name}}_lib::run() }
     // (window is already visible by default — don't .hide() it)
 
     // Reset any stuck state from a previous run (force-quit / crash)
-    crate::cancellation::force_clear_transcription_handle();
+    crate::jobs::clear_stuck_job_state();
 
     // Now do heavy initialization on a background thread
     let handle = app.handle().clone();
@@ -106,8 +106,8 @@ fn main() { {{app_name}}_lib::run() }
 
 ```rust
 // In .setup(), before any "ready" event:
-let was_in_progress = crate::cancellation::has_ongoing_transcription();
-crate::cancellation::force_clear_transcription_handle();
+let was_in_progress = crate::jobs::has_running_job();
+crate::jobs::clear_stuck_job_state();
 if was_in_progress {
     tracing::warn!("Cleared stuck state from previous session (app likely force-quit)");
 }
@@ -229,9 +229,9 @@ app.manage(state);
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
-    pub default_microphone: Option<String>,
-    pub hands_free_mode: bool,
-    pub local_whisper_model: String,
+    pub default_export_dir: Option<String>,
+    pub launch_at_login: bool,
+    pub theme: String,
     // ...
 }
 ```

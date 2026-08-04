@@ -38,15 +38,15 @@ Capabilities are Tauri 2's permission system. The frontend can only invoke a plu
 
 ## Per-window capability files
 
-If the app has multiple windows (overlay, settings popup, waveform), each one gets its own capability file scoped to just that window's needs. A transparent waveform overlay does not need `fs:allow-write-file` or `dialog:*` — it usually only emits events.
+If the app has multiple windows (overlay, settings popup, tray panel), each one gets its own capability file scoped to just that window's needs. A transparent overlay does not need `fs:allow-write-file` or `dialog:*` — it usually only emits events.
 
 ```json
-// capabilities/waveform.json
+// capabilities/overlay.json
 {
   "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "waveform",
-  "description": "Capability for the waveform overlay window",
-  "windows": ["waveform"],
+  "identifier": "overlay",
+  "description": "Capability for the overlay window",
+  "windows": ["overlay"],
   "permissions": [
     "core:default"
   ]

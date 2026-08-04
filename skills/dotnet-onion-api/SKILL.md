@@ -35,7 +35,7 @@ Pick the mode from the user's request. If ambiguous, ask.
 
 ### Step 1 — Determine the target framework (don't hard-code)
 
-The user explicitly does **not** want a hard-coded `<TargetFramework>` baked into the skill. Before generating `.csproj` files:
+Never bake a hard-coded `<TargetFramework>` into generated projects — resolve it at scaffold time. Before generating `.csproj` files:
 
 1. Check the user's environment first: run `dotnet --list-sdks` to see installed SDKs.
 2. If a current LTS SDK is installed, prefer the highest installed LTS (`net8.0`, `net10.0`, etc.).
@@ -302,4 +302,4 @@ If any check fails, fix before reporting. Don't claim success with a known-broke
 - **Don't over-engineer**: don't add MediatR, CQRS, MassTransit, Polly, MinimalAPI conversions, Result<T> patterns, or domain events unless the user asks. Pragmatic > pure.
 - **Don't rewrite the user's existing codebase** as part of this skill. This skill is for *new* scaffolds, not migrations. If the user wants a migration plan, that's a different conversation.
 - **Multi-tenancy**: if the new project needs it, generate a `TenantContext` mirroring `IUserContext` and use EF Core query filters (`HasQueryFilter`) rather than per-tenant repositories.
-- **Always quote the TFM and package versions you chose before writing files** — the user explicitly asked not to hard-code them.
+- **Always quote the TFM and package versions you chose before writing files** — they are resolved at scaffold time, never hard-coded.

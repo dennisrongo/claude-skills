@@ -106,14 +106,14 @@ MaterialIcons buttons have no text for Maestro to match. Add `testID` and `acces
 // After — Maestro taps by accessibility label
 <TouchableOpacity
   onPress={...}
-  testID="add-chore-button"
+  testID="add-item-button"
   accessible={true}
-  accessibilityLabel="Add Chore"
+  accessibilityLabel="Add Item"
 >
   <MaterialIcons name="add" size={28} color="..." />
 </TouchableOpacity>
 ```
-Then: `- tapOn: "Add Chore"`
+Then: `- tapOn: "Add Item"`
 
 ### ⚠️ Pitfall 5: `hideKeyboard` and `back` exit dev builds
 
@@ -217,7 +217,7 @@ project-root/
 │   │   ├── tab-nav.yaml
 │   │   └── dashboard-elements.yaml
 │   ├── features/
-│   │   ├── create-chore.yaml
+│   │   ├── create-item.yaml
 │   │   └── view-list.yaml
 │   └── suites/
 │       ├── smoke.yaml            # fast: navigation + visibility (pre-merge)
@@ -282,7 +282,7 @@ jobs:
 1. **Ration flows by journey risk.** Each flow is slow and has flake surface. Test through the UI only what is *about* the flow: the user journey, navigation, the wiring. Business-logic variations belong in unit tests.
 2. **Selectors a user would recognize.** `accessibilityLabel` > `testID` > text > coordinates. Never raw coordinates — they break on any layout change.
    - ❌ `tapOn: { point: 93%,9% }` — breaks on any layout change, catches nothing a user cares about.
-   - ✅ `tapOn: "Add Chore"` (backed by `accessibilityLabel`) — breaks only when the user's world breaks.
+   - ✅ `tapOn: "Add Item"` (backed by `accessibilityLabel`) — breaks only when the user's world breaks.
 3. **No blind sleeps.** `waitForAnimationToEnd` and `extendedWaitUntil` auto-wait.
 4. **Prove red-capable** (non-negotiable): break the behavior or the assertion target, run, quote the red; revert, quote the green. A flow never seen red is a decoration.
 5. **Quote the run summary.** A result you didn't observe is `not run`, never "passed."
@@ -291,9 +291,9 @@ jobs:
 
 ### Example 1: post-feature smoke → durable suite
 
-**User:** "I just finished the chore creation flow — test it on the emulator."
+**User:** "I just finished the item creation flow — test it on the emulator."
 
-**Claude:** Builds a debug APK (not dev build — "dev builds are fragile under Maestro"), installs it, boots the emulator headed. Writes `.maestro/features/create-chore.yaml`: navigate to Chores → tap "Add Chore" (via `accessibilityLabel`) → fill title + description → save → verify on list. Proves it red by running with a wrong assertion target, quotes both runs. Adds it to the smoke suite.
+**Claude:** Builds a debug APK (not dev build — "dev builds are fragile under Maestro"), installs it, boots the emulator headed. Writes `.maestro/features/create-item.yaml`: navigate to Items → tap "Add Item" (via `accessibilityLabel`) → fill title + description → save → verify on list. Proves it red by running with a wrong assertion target, quotes both runs. Adds it to the smoke suite.
 
 ### Example 2: "test my expo app"
 

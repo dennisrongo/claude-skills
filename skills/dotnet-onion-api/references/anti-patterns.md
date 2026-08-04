@@ -20,7 +20,7 @@ Each item lists a common legacy pattern, why it's wrong, and what to do instead.
 
 ## 3. Reflection-based `DataRow → object` mappers
 
-**Anti-pattern:** A `MakeObjectFromDataRow` helper with a giant switch on `PropertyType.Name`, custom date parsing, swallowed exceptions on `SetValue`.
+**Anti-pattern:** A reflection-based `MapRowToObject`-style helper with a giant switch on `PropertyType.Name`, custom date parsing, swallowed exceptions on `SetValue`.
 
 **Why bad:** Slow, ignores nullability, eats errors, can't be debugged.
 
@@ -28,7 +28,7 @@ Each item lists a common legacy pattern, why it's wrong, and what to do instead.
 
 ## 4. EF6 on `netstandard2.1`
 
-**Anti-pattern:** `EntityFramework 6.4.4` referenced from `netstandard2.1` libraries, EF Core nowhere.
+**Anti-pattern:** `EntityFramework 6.x` referenced from `netstandard2.1` libraries, EF Core nowhere.
 
 **Why bad:** EF6 is maintenance-mode; no async-streaming, no compiled queries, no `IAsyncEnumerable`, no migrations bundles.
 
@@ -108,7 +108,7 @@ Register singletons (Azure SDK clients, HttpClient factories, options) explicitl
 
 ## 12. Per-tenant repository folders
 
-**Anti-pattern:** `FormRepositories/TenantA/`, `FormRepositories/TenantB/` — branching tenant logic at the repository layer with parallel folders per customer.
+**Anti-pattern:** `Repositories/TenantA/`, `Repositories/TenantB/` — branching tenant logic at the repository layer with parallel folders per customer.
 
 **Why bad:** Doesn't scale, duplicates code, hides shared behavior, requires registering different implementations per tenant.
 
@@ -124,7 +124,7 @@ Register singletons (Azure SDK clients, HttpClient factories, options) explicitl
 
 ## 14. Commented-out dead code
 
-**Anti-pattern:** Large `// var existingFactor = await ...` blocks left in repository code "in case we need it later".
+**Anti-pattern:** Large `// var existing = await ...` blocks left in repository code "in case we need it later".
 
 **Why bad:** Confuses readers, rots, never accurate again.
 

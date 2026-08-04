@@ -136,7 +136,7 @@ Top-level shape:
         commands.rs
       platform/                # trait-based platform abstractions
         mod.rs
-        traits.rs              # PermissionChecker, FileOpener, TextInserter
+        traits.rs              # PermissionChecker, FileOpener, AutostartManager
         macos.rs               # #[cfg(target_os = "macos")]
         windows.rs
         linux.rs
@@ -159,7 +159,7 @@ Top-level shape:
 **Dependency rules (enforced):**
 
 - `commands/` files call into `state/`, `settings/`, `storage/`, `platform/`, `<domain>/` modules — never the other way.
-- Domain modules (`audio`, `history`, `whisper`, …) may depend on `storage/` and `platform/traits`, but not on `commands/` or Tauri's runtime types directly (use `AppHandle` only when persisting via `storage::get_app_data_dir`).
+- Domain modules (`export`, `history`, `sync`, …) may depend on `storage/` and `platform/traits`, but not on `commands/` or Tauri's runtime types directly (use `AppHandle` only when persisting via `storage::get_app_data_dir`).
 - `platform/<os>.rs` files are gated with `#[cfg(target_os = "...")]` and **only** these files contain `cfg!(target_os)` checks. All other modules go through `platform::traits::*` and a `Platform<X>` wrapper managed in `State`.
 - Frontend `hooks/use<Domain>.ts` files compose `useTauriCommand` — they never call `invoke()` directly inline in a component.
 
@@ -175,7 +175,7 @@ Full templates are in [`references/templates/`](references/templates/). The full
 - **`tauri-plugin-single-instance` registered first** in the builder chain, with a callback that focuses the existing window when a second instance launches. See [`references/templates/lib-rs.md`](references/templates/lib-rs.md).
 - **Modular `commands/`** — one file per domain, all re-exported from `commands/mod.rs`, registered in a single `tauri::generate_handler![...]` call in `lib.rs`.
 - **`State<AppState>` for shared app state** managed via `app.manage(Mutex::new(AppState::new()))`. Inside async commands, hold the lock for the minimum time and drop it before any `.await`.
-- **Trait-based platform abstractions** (`PermissionChecker`, `FileOpener`, `TextInserter`) in `platform/traits.rs`, with `#[cfg(target_os = "...")]` implementations in `platform/macos.rs`, `windows.rs`, `linux.rs`, and `Send + Sync` wrappers in `platform/wrappers.rs` managed in Tauri State. Tests assert `Send + Sync` on the wrappers.
+- **Trait-based platform abstractions** (`PermissionChecker`, `FileOpener`, `AutostartManager`) in `platform/traits.rs`, with `#[cfg(target_os = "...")]` implementations in `platform/macos.rs`, `windows.rs`, `linux.rs`, and `Send + Sync` wrappers in `platform/wrappers.rs` managed in Tauri State. Tests assert `Send + Sync` on the wrappers.
 - **`storage/mod.rs` shared utilities** — `get_app_data_dir`, `get_storage_path`, `load_json<T>`, `save_json<T>`, `generate_id`, `Timestamped` trait, `prune_entries_by_age` — used by `settings/`, `history/`, `error_log/`, and any other persistent JSON store.
 - **Settings with `#[serde(rename_all = "camelCase", default)]`** so the on-disk JSON matches frontend naming, and missing fields fall back to `Default`. Add a migration pass in `deserialize_settings(json: &Value) -> Settings` when fields change shape.
 - **`thiserror` enums at module boundaries**; `anyhow::Result` only inside private helpers. Commands return `Result<T, String>` with errors stringified at the `#[tauri::command]` boundary — use the `into_string_err!` macro / `ResultExt::into_string()` from `error/mod.rs` to keep this clean.
@@ -285,7 +285,7 @@ For module `{{module}}` (snake_case):
 
 After generating: `cd src-tauri && cargo build && cargo test` — Step-4 proof-and-failure protocol applies.
 
-## NuGet... wait, this is Tauri. Cargo + npm packages (resolve latest stable at scaffold time)
+## Cargo + npm packages (resolve latest stable at scaffold time)
 
 Look these up at scaffold time — do not hand-paste versions:
 
@@ -403,4 +403,4 @@ If any check fails, fix before reporting. Don't claim success with a known-broke
 - **Updater**: only wire it if the user has, or commits to setting up, a JSON manifest at a known URL and has generated a signing key. Half-wired updaters silently fail in production.
 - **Icons**: a single high-res source PNG (1024×1024+) generates every platform-specific format via `npx @tauri-apps/cli icon <path>`. Don't ship the auto-generated placeholder as the real icon.
 - **Naming**: kebab-case for the project directory, Title Case for the `productName`, snake_case for the Rust crate (`{{app_name}}` in `Cargo.toml`), reverse-DNS for the bundle identifier. Mismatches in casing are a top source of "works locally, broken installer" bugs.
-- **Versions**: always quote the resolved versions before writing `Cargo.toml` / `package.json`. The user explicitly asked not to hard-code them.
+- **Versions**: always quote the resolved versions before writing `Cargo.toml` / `package.json`. They are resolved at scaffold time, never hard-coded.
