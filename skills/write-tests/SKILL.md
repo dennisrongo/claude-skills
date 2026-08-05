@@ -1,6 +1,6 @@
 ---
 name: write-tests
-description: Author tests that actually catch regressions — picks WHAT to test by risk (branch points, boundaries, error paths, money/auth/concurrency), proves every new test can fail (a test never seen red is decoration), mocks only boundaries you don't own, and pins untested legacy code with labeled characterization tests before anything else touches it. Use this skill whenever the user says "write tests", "add tests", "test this", "add coverage", "unit test this function", "increase coverage", "add a regression test", "characterization tests", "TDD this", or "/write-tests" — even if they don't explicitly say "test skill". Do not use for diagnosing a failing test (use diagnose) or reviewing existing tests as part of a diff (use code-review / pr-review).
+description: Author tests that actually catch regressions — picks WHAT to test by risk (branch points, boundaries, error paths, money/auth/concurrency), proves every new test can fail (a test never seen red is decoration), mocks only boundaries you don't own, and pins untested legacy code with labeled characterization tests before anything else touches it. Use this skill whenever the user says "write tests", "add tests", "test this", "add coverage", "unit test this function", "increase coverage", "add a regression test", "characterization tests", "TDD this", or "/write-tests" — even if they don't explicitly say "test skill". Do not use for diagnosing a failing test (use diagnose) or reviewing existing tests as part of a diff (use code-review).
 ---
 
 # Write Tests
@@ -13,7 +13,7 @@ Author tests whose only job is to fail when the behavior breaks. Everything else
 - A feature just landed without tests, or task-executor hands off a test-writing step.
 - The user wants to change untested legacy code safely (pin first, then change — composes with `safe-refactor`).
 
-Do **not** auto-trigger when the user is debugging a failing test (`diagnose`) or reviewing test quality in a diff (`code-review`, `pr-review`).
+Do **not** auto-trigger when the user is debugging a failing test (`diagnose`) or reviewing test quality in a diff (`code-review`).
 
 ## Workflow
 

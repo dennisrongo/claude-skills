@@ -37,7 +37,7 @@ If you're in the library repo, prefer that destination — the user can install 
    - **Outputs** — files written, commands run, a structured response, a PR?
    - **Scripts / references** — does the skill need bundled executable helpers or long reference docs, or is plain `SKILL.md` enough?
    - **Anti-patterns** — what should Claude explicitly *not* do? (Most-overlooked input — ask for it.)
-3. **Pick the name.** kebab-case, 2–4 words, matches what the user says. Use the leading-verb form when the skill *does* something (`write-a-skill`, `diagnose`, `handoff`); use the noun form when it *defines* something (`conventional-commits`, `pr-review`).
+3. **Pick the name.** kebab-case, 2–4 words, matches what the user says. Use the leading-verb form when the skill *does* something (`write-a-skill`, `diagnose`, `handoff`); use the noun form when it *defines* something (`conventional-commits`, `model-inventory`).
 4. **Check for collisions.** `ls` the target skills directory. If a skill with the same name exists, stop and ask the user whether to overwrite, rename, or extend the existing one.
 5. **Scaffold from `_template/`** if it exists in the destination, otherwise from the template embedded below. Create the parent directory if missing.
 6. **Draft the SKILL.md** using the section structure in [Required structure](#required-structure). Write the description LAST — it depends on the body.

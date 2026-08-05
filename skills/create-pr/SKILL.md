@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: End-to-end pull-request flow with a review gate — reviews the branch BEFORE publishing (pr-review skill if installed; blockers must be fixed or explicitly waived), pushes with user approval, creates one PR per repo for multi-repo work items with house defaults from config (title pattern, target branch, required reviewers, auto-complete, work-item link), cross-references sibling PRs with deploy-order coupling, verifies every setting after creation, and reports the URLs. Detects the provider from the git remote (Azure DevOps via the azure-devops skill, GitHub via gh). Use this skill whenever the user says "create a PR", "open a pull request", "publish the branch and create a PR", "PR this", "ship this branch", "create the PRs for this task", or "raise a PR" — even if they don't explicitly say "create-pr skill". For reviewing someone else's PR (not creating one), use a review skill instead.
+description: End-to-end pull-request flow with a review gate — reviews the branch BEFORE publishing (code-review skill's branch scope if installed; blockers must be fixed or explicitly waived), pushes with user approval, creates one PR per repo for multi-repo work items with house defaults from config (title pattern, target branch, required reviewers, auto-complete, work-item link), cross-references sibling PRs with deploy-order coupling, verifies every setting after creation, and reports the URLs. Detects the provider from the git remote (Azure DevOps via the azure-devops skill, GitHub via gh). Use this skill whenever the user says "create a PR", "open a pull request", "publish the branch and create a PR", "PR this", "ship this branch", "create the PRs for this task", or "raise a PR" — even if they don't explicitly say "create-pr skill". For reviewing someone else's PR (not creating one), use a review skill instead.
 ---
 
 # Create PR
@@ -13,7 +13,7 @@ The full flow from "the branch is ready" to "verified PRs exist" — with the re
 - "publish the branch and create a PR" / "ship this branch"
 - "create the PRs for this task" (multi-repo)
 
-Do **not** use for reviewing an existing PR (use `pr-review`) or for local-only git work.
+Do **not** use for reviewing an existing PR (use `code-review`'s branch scope) or for local-only git work.
 
 ## Workflow
 
@@ -28,11 +28,11 @@ State in one line: work item/ticket id, branch name, and every repo the change t
 
 ### 2. Review gate — before publishing, not after
 
-- Run the `pr-review` skill on the branch if installed (grouped by task id); otherwise perform a focused diff review of the branch against its **configured target** (`git diff <targetBranch>...HEAD`) — a diff against the wrong base reviews commits that aren't yours or misses ones that are.
+- Run the `code-review` skill in branch scope on the branch if installed (grouped by task id); otherwise perform a focused diff review of the branch against its **configured target** (`git diff <targetBranch>...HEAD`) — a diff against the wrong base reviews commits that aren't yours or misses ones that are.
 - If SQL files changed, also run `sql-review` if installed.
 - **Blocking findings stop the flow** — but "blocker" carries a burden of proof: name the concrete failure scenario in one sentence ("user does X → wrong Y"). No scenario → it's a suggestion, and suggestions don't stop the flow. Each real blocker is either fixed, or explicitly waived by the user — a waiver is recorded in the PR description ("Known issue: X — accepted because Y"). Zero findings is a valid outcome; proceed.
 - ❌ "Reviewed — looks good" with no findings listed and no diff quoted → that's recognition, not review.
-- ✅ "pr-review: 0 blocking, 2 suggestions (deferred, listed in PR body). Proceeding."
+- ✅ "branch review: 0 blocking, 2 suggestions (deferred, listed in PR body). Proceeding."
 
 ### 3. Publish
 

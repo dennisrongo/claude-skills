@@ -12,7 +12,7 @@ Scan → probe → cache: which AI CLIs live on this machine, which models each 
 - "scan available models" / "which models can I use" / "check my model access"
 - "what AI CLIs are installed" / "is fable available"
 - "refresh the model inventory" / "/model-inventory"
-- A consumer skill (goal-runner, autopilot) finds `~/.claude/model-inventory.json` missing or stale and asks for a rebuild
+- A consumer skill (goal-runner, autopilot, task-executor) finds `~/.claude/model-inventory.json` missing or stale at kickoff and invokes this skill to rebuild it
 
 Do **not** auto-trigger mid-task to choose a model — consumers read the cached inventory; rescanning is this skill's explicit job.
 
@@ -56,7 +56,7 @@ The cost policy lives in the shape: the strongest model is the *escalation* (pla
 ## Consumption contract
 
 - File: `~/.claude/model-inventory.json`. Top level: `schema`, `generated_at` (UTC ISO), `platform`, `probed` (bool), `clis[]` (name, installed, path, version, `auth{status,evidence}`, invocation, optional `default_model{id,evidence}` from the CLI's local config, `models[]{id,status,evidence}` where a `default` entry carries `resolved_id` when the probe banner revealed what actually ran), `routing{agent_tool, bash_workers}`.
-- Consumers take the **first** entry of a role's chain not marked `unavailable`/`blocked-by-auth`/`quota-exhausted` and pass it as the Agent tool's `model` param — bare aliases only; skip any other value. Missing, unparseable, `generated_at` older than 7 days, or `probed: false` → treat as absent: spawn with no model override and optionally suggest rerunning this skill. Never let a stale inventory block work, and never write this file from a consumer — it's this skill's artifact. Consumers may rerun `scripts/scan.sh` as a free sanity check (drop a routing CLI whose binary/auth signal vanished) but never probe mid-run.
+- Consumers take the **first** entry of a role's chain not marked `unavailable`/`blocked-by-auth`/`quota-exhausted` and pass it as the Agent tool's `model` param — bare aliases only; skip any other value. Missing, unparseable, `generated_at` older than 7 days, or `probed: false` → treat as absent: spawn with no model override and optionally suggest rerunning this skill. Never let a stale inventory block work, and never hand-write this file from a consumer — it's this skill's artifact. Consumers with this skill installed may invoke it **once at kickoff** to rebuild a missing/stale inventory (logging the discovery run), and may rerun `scripts/scan.sh` as a free sanity check anytime — but never probe mid-run; mid-run model failures are the consumer's chain-fallback problem, not a rescan trigger.
 
 ## Examples
 
@@ -84,6 +84,6 @@ The cost policy lives in the shape: the strongest model is the *escalation* (pla
 
 ## Notes
 
-- Composes with `goal-runner` and `autopilot` as consumers (they resolve each sub-agent role from `routing.agent_tool` when the inventory is fresh, and degrade to no-override when it's absent). This skill only *produces* the inventory.
+- Composes with `goal-runner`, `autopilot`, and `task-executor` as consumers (they resolve each sub-agent role from `routing.agent_tool` when the inventory is fresh, invoke this skill once at kickoff to rebuild it when it's missing or stale, and degrade to no-override when this skill isn't installed or discovery fails). This skill owns discovery and the file format; consumers never probe mid-run.
 - To cover another CLI, follow "Adding a CLI" in [references/cli-registry.md](references/cli-registry.md) — one auth heuristic in `scan.sh`, one registry section.
 - Ollama models are free to run but weak as coding workers — they land in `bash_workers` with their evidence; consumers decide whether local quality suffices.

@@ -1,22 +1,10 @@
----
-name: browser-use-web-test
-description: Verify a web application end-to-end using browser-use — an open-source AI agent that drives a real headless browser to test flows, assert on visible state, and catch visual/DOM regressions. The web counterpart to maestro-mobile-test. Works against any URL the agent can reach — localhost dev servers, staging, production. Covers what Playwright-alone cannot: AI-driven exploratory testing where the agent decides what to click based on natural-language intent, not brittle selectors. Use this skill whenever the user says "test my web app", "verify the web UI", "e2e test the frontend", "browser test this", "check the web app works", "run browser-use", or "/browser-use-web-test" — even if they don't name the skill. Not for native mobile apps (maestro-mobile-test), unit tests (write-tests), or static analysis.
----
+# Engine: browser-use (AI-driven ephemeral verification)
 
-# Browser-Use Web Test
+How to run `e2e-verify` Route A with [browser-use](https://github.com/browser-use/browser-use) — an open-source (MIT) Python library that gives an LLM agent a real headless Chromium: it opens pages, clicks, types, reads the DOM, takes screenshots, and reports what it found. Unlike Playwright (fixed scripts), browser-use **decides what to click** from natural-language intent — so it can explore flows a fixed test would miss.
 
-Close the loop between "the code compiles" and "a real user can actually do the thing" — on the web. `browser-use` is an open-source (MIT) Python library that gives an LLM agent a browser: it opens pages, clicks, types, reads the DOM, takes screenshots, and reports what it found. Unlike Playwright (which runs fixed scripts), browser-use **decides what to click** based on natural-language intent — so it can explore flows a fixed test would miss.
+Pick this engine when it's installed (`python -c "import browser_use"` succeeds), when the user names it ("run browser-use"), or when the run benefits from exploratory AI walking — the agent *finding* broken flows rather than re-running known paths. Works for any web frontend (Next.js/React/Vue/Svelte/vanilla) and for Tauri apps via their Vite dev server. Not for native mobile (`maestro-mobile-test`).
 
-The discipline is the same as `e2e-verify` and `maestro-mobile-test`: ration by journey risk, quote what you observed, prove assertions, never report "passed" on something you didn't run. What changes is the engine — an AI agent driving a headless Chromium.
-
-## When to use this skill
-
-- The user says "test my web app", "verify the web UI", "e2e test the frontend", "browser test this", "check it works in the browser", "run browser-use", or "/browser-use-web-test".
-- A Next.js / React / Vue / Svelte / vanilla web feature shipped and needs runtime proof beyond unit tests.
-- A Tauri app's frontend needs testing — point browser-use at the Vite dev server (`localhost:1420`), same as any web app.
-- Exploratory testing where you want the agent to find broken flows, not just re-run known paths.
-
-Do **not** auto-trigger for native mobile apps (`maestro-mobile-test`), unit/component tests (`write-tests`), or API contract tests.
+The discipline is identical to every other `e2e-verify` engine: safety gate first, ration by journey risk, quote what you observed, never report "passed" on something you didn't run. All paths below are relative to the `e2e-verify` skill root.
 
 ## Prerequisites
 
@@ -24,16 +12,16 @@ Do **not** auto-trigger for native mobile apps (`maestro-mobile-test`), unit/com
 |---|---|---|
 | Python 3.11+ | `python --version` | System Python (or `brew install python` / `apt install python3`) |
 | uv (package manager) | `uv --version` | `pip install uv` — or `brew install uv` (macOS) |
-| browser-use venv | `python -c "import browser_use"` | Run `scripts/setup.sh` (handles everything) |
-| Playwright Chromium | `playwright install chromium` | Installed automatically by `scripts/setup.sh` |
+| browser-use venv | `python -c "import browser_use"` | Run `scripts/browser-use/setup.sh` (handles everything) |
+| Playwright Chromium | `playwright install chromium` | Installed automatically by `scripts/browser-use/setup.sh` |
 | An LLM API key | Any provider env var | OpenAI, Gemini, DashScope, Anthropic, Groq, OpenRouter, or Ollama (local) |
 
 ### One-time setup script
 
-The `scripts/setup.sh` script in this skill creates a dedicated venv, installs browser-use + Playwright, and writes an activation helper:
+The `scripts/browser-use/setup.sh` script creates a dedicated venv, installs browser-use + Playwright, and writes an activation helper:
 
 ```bash
-bash skills/browser-use-web-test/scripts/setup.sh
+bash skills/e2e-verify/scripts/browser-use/setup.sh
 ```
 
 What it does:
@@ -71,7 +59,7 @@ export OPENROUTER_API_KEY="sk-or-..."    # OpenRouter (any model)
 
 To override auto-detection, set `BROWSER_USE_LLM_KEY`, `BROWSER_USE_LLM_BASE_URL`, and `BROWSER_USE_LLM_MODEL`.
 
-The `config.py` in `scripts/` handles detection:
+The `config.py` in `scripts/browser-use/` handles detection:
 
 ```python
 from browser_use.llm import ChatOpenAI
@@ -85,7 +73,7 @@ llm = ChatOpenAI(model=MODEL, api_key=API_KEY, base_url=BASE_URL)
 ## The core workflow
 
 1. **Start the dev server** the repo's own way (`npm run dev`, `npx next dev`, etc.). Confirm it responds before launching the agent.
-2. **Write the verification script** using the template in `scripts/verify_template.py`.
+2. **Write the verification script** using the template in `scripts/browser-use/verify_template.py`.
 3. **Run it** against localhost.
 4. **Read the agent's report** — it returns structured findings, not just pass/fail.
 
@@ -298,13 +286,13 @@ This tests the harness (does the script correctly surface failures?) without dep
 
 ## Scripts
 
-This skill ships with reusable scripts in `scripts/`:
+Reusable scripts ship with `e2e-verify` in `scripts/browser-use/`:
 
 | Script | Purpose |
 |---|---|
-| `scripts/setup.sh` | One-time venv creation + browser-use install |
-| `scripts/verify_template.py` | Copy-and-edit template for new verification flows |
-| `scripts/config.py` | LLM endpoint config (read from env vars) |
+| `scripts/browser-use/setup.sh` | One-time venv creation + browser-use install |
+| `scripts/browser-use/verify_template.py` | Copy-and-edit template for new verification flows |
+| `scripts/browser-use/config.py` | LLM endpoint config (read from env vars) |
 
 ## Links
 

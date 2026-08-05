@@ -53,6 +53,13 @@ Run the `code-review` skill if installed (else a focused diff review). Autonomou
 
 In order: **Outcome** (one sentence — done / done-with-caveats / hard-stopped where). "Done" is earned only when every phase exit was observed; a single `not run`, an unexplained test failure, or a surviving blocker makes it "done-with-caveats" *with the caveat named in the same sentence* — never buried three sections down. **What changed** (files + why). **Evidence** (quoted test/build/run output per the doctrine tags: verified/inferred/assumed). **Review outcome** (findings, fixes applied, anything remaining). **ASSUMPTIONS table** (question → choice → why → blast radius). **Found along the way.** **Your move** (the commit/PR steps deliberately left to the human, ready to paste).
 
+## Sub-agent model routing
+
+Resolve sub-agent models from the `routing.agent_tool` chains in `~/.claude/model-inventory.json`, under the same trust gate as `goal-runner`: the file counts only if it parses, `probed` is true, and `generated_at` is under 7 days old. When it fails the gate (missing, stale, unprobed) and the `model-inventory` skill is installed, run that skill's workflow **once at kickoff** — free scan plus its own probe discipline, a handful of one-line probes costing cents at most — then route from the fresh file, logging the discovery run (what was probed, what it found) in the report. Skill not installed, or discovery fails → spawn with no model override and log one line. Hard boundaries: discovery runs at most once per run and never mid-run (mid-run model failures use the chain fallback below, not re-probing); a discovery failure is a report note, never a hard stop; the inventory file is only ever written by the model-inventory workflow itself.
+
+- Phase 1 inspection explorers → `scout` chain; Phase 4 review sub-agents (e.g. `code-review` lenses) → `reviewer` chain; any delegated coding → `coder`, or `coder_high_risk` when the task touches auth, money, migrations, or 3+ layers.
+- Take each chain's first entry not marked `unavailable`/`blocked-by-auth`/`quota-exhausted`; pass bare aliases only (`haiku`/`sonnet`/`opus`/`fable`), skipping anything else. A spawn rejected over its model falls to the next entry, then to no override — logged in the report, never a hard stop.
+
 ## Launching autonomously (harness side)
 
 The skill removes *its* gates; the harness must not add prompts back:
