@@ -1,20 +1,26 @@
 ---
 name: code-review
-description: Production-readiness code review of **uncommitted** working-tree changes (staged + unstaged). Hunts DRY violations, dead code, leaky abstractions, missing error handling, and other common best-practice gaps; auto-detects and runs the project's tests and build; reports findings categorized `blocking` / `suggestion` / `nit` and **never edits code without permission** — recommendation first, ask, then fix. On non-trivial diffs, spawns a **lens council**: parallel `Explore` sub-agents reviewing through distinct lenses (correctness / design / security / tests / production-readiness), then an adversarial critique round that challenges each lens's blocking flags against context from the others — false positives get demoted, contradictions get surfaced for the user to adjudicate. Small diffs skip the council. Use this skill whenever the user says "code review", "review my code", "review the diff", "check my uncommitted changes", "is this production ready", "ready to ship", "DRY check", "clean up duplication", or "/code-review" — even if they don't explicitly say "code review skill". Distinct from `pr-review` (which scopes to committed branch work grouped by `#NNN`): this skill scopes to the working tree and gates on tests + build green.
+description: Production-readiness code review at either scope — the uncommitted working tree (default) or a committed branch grouped per `#NNN` task (references/branch-review.md). Hunts DRY violations, dead code, leaky abstractions, missing error handling; auto-detects and runs the project's tests and build; findings categorized `blocking`/`suggestion`/`question`/`nit`/`praise`, and never edits code without permission — report first, ask, then fix. Non-trivial diffs get a lens council: parallel Explore sub-agents (correctness/design/security/tests/production-readiness) plus an adversarial critique round; small diffs skip it. Use this skill whenever the user says "code review", "review my code", "review the diff", "review my PR", "review my branch", "check my uncommitted changes", "is this production ready", "DRY check", or "/code-review" — even if they don't explicitly say "code review skill". Dirty tree → working-tree scope; "branch"/"PR" or clean tree with branch commits → branch scope.
 ---
 
 # Code Review
 
-Review the uncommitted changes in the working tree against DRY and common software-engineering best practices, verify the project still builds and its tests still pass, and surface findings as recommendations the user can act on — **without editing code unprompted**.
+Review code changes against DRY and common software-engineering best practices, verify the project still builds and its tests still pass, and surface findings as recommendations the user can act on — **without editing code unprompted**.
 
 ## When to use this skill
 
 - "code review" / "review my code" / "review the diff"
+- "review my PR" / "review my branch" / "review my changes"
 - "check my uncommitted changes" / "is this production ready" / "ready to ship"
 - "DRY check" / "clean up duplication"
 - `/code-review`
 
-Do **not** auto-trigger when the user is asking for a PR / committed-branch review — defer to [`pr-review`](../pr-review/SKILL.md) for that. The dividing line is **committed vs. uncommitted**.
+## Scope: working tree or branch
+
+- **Working tree (the default):** uncommitted staged + unstaged changes. The workflow below reads in this scope.
+- **Branch:** the user says "review my PR / branch", or the working tree is clean and the branch has commits ahead of its base. Same evidence rules, categories, council, and recommend-don't-refactor discipline — but commits are grouped per `#NNN` task with one verdict each, per [references/branch-review.md](references/branch-review.md).
+
+Never blend scopes into one report. Both apply (dirty tree *and* branch commits, user said "review everything") → ask which, or run them as two clearly separated reports.
 
 ## Hard rule: recommend, don't refactor
 
@@ -38,7 +44,7 @@ A claim about code you haven't opened this session is a hypothesis — verify it
    - `git status --short` — see what's modified, staged, untracked.
    - `git diff` — unstaged changes.
    - `git diff --staged` — staged changes.
-   - `git diff <base>...HEAD` is **out of scope** here — that's `pr-review`'s job.
+   - `git diff <base>...HEAD` belongs to branch scope — see [references/branch-review.md](references/branch-review.md).
 2. **Understand intent.** Read the diff top-to-bottom once. If the *why* isn't obvious from context, ask the user one focused question before reviewing — "is this correct" is unanswerable without intent.
 3. **Detect test + build commands.** Inspect repo manifests in parallel and infer commands:
    - `package.json` → `npm test`, `npm run build` (or `pnpm` / `yarn` if the lockfile says so)
@@ -71,6 +77,7 @@ These rules govern the fix-application phase only — they don't change the repo
 
 - **`blocking`** — must fix before ship: bug, broken contract, security hole, build/test failure, missing migration, hard-coded secret. **Burden of proof:** a `blocking` finding must include a one-sentence concrete failure scenario (*this input/state → this wrong outcome*). If you cannot write that sentence, demote to `suggestion`.
 - **`suggestion`** — would improve the code; user can take or leave. DRY consolidations, dead-code removal, missing error handling on non-critical paths.
+- **`question`** — the author may know something you don't; ask before asserting. Also the landing spot for lens-council contradictions the user should adjudicate.
 - **`nit`** — style/preference; never blocks.
 - **`praise`** — something done well, cited to a specific `file:line` (*"the retry wrapper at `http.ts:40` is exactly right for this flaky API"*). Generic filler ("nice clean code!") is worse than omitting the section. Include one only when it's genuine.
 
@@ -270,7 +277,7 @@ End with the offer. Wait for the user's choice. Apply only the approved set, the
 - ❌ Fixing without asking, even for "obvious" issues. Obviousness is not consent.
 - ❌ Skipping the test/build run because "the diff looks fine".
 - ❌ Reporting a green build without actually running it.
-- ❌ Reviewing committed history — that's [`pr-review`](../pr-review/SKILL.md)'s job. Stop at the working tree.
+- ❌ Blending scopes — one report mixing working-tree findings with branch-commit findings. Pick the scope (or run two clearly separated reports); branch scope follows [references/branch-review.md](references/branch-review.md).
 - ❌ DRY-ing prematurely — calling out three similar lines as duplication when the right call is to leave them. Note the pattern; flag only when the abstraction is clearly warranted.
 - ❌ Padding the report with style nits when there are correctness blockers.
 - ❌ Hand-wavy findings without `file:line`.
@@ -286,6 +293,6 @@ End with the offer. Wait for the user's choice. Apply only the approved set, the
 
 ## Notes
 
-- If the working tree is clean, say so and stop — there's nothing to review. Don't pivot to `pr-review` without being asked.
+- If the working tree is clean, say so — and if the branch has commits ahead of its base, offer branch scope rather than silently pivoting to it.
 - If tests take a long time, run them in the background and continue the static review while they run; reconcile the report once results land.
 - This skill composes with [`conventional-commits`](../conventional-commits/SKILL.md): after fixes are approved and applied, hand the commit-message authoring to that skill rather than improvising one here.

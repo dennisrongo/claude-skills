@@ -21,7 +21,7 @@ Do **not** auto-trigger for:
 
 - A request to *implement* a specific refactor — use [`task-executor`](../task-executor/SKILL.md).
 - A bug or regression — use [`diagnose`](../diagnose/SKILL.md).
-- A line-by-line review of a specific diff — use [`pr-review`](../pr-review/SKILL.md).
+- A line-by-line review of a specific diff — use [`code-review`](../code-review/SKILL.md).
 
 ## Glossary
 
@@ -125,5 +125,5 @@ Side effects happen inline as decisions crystallize:
 ## Notes
 
 - **Composes with** [`task-executor`](../task-executor/SKILL.md): hand off the chosen candidate (with its decided interface) to `task-executor` for the implementation. This skill writes no production code.
-- **Composes with** [`pr-review`](../pr-review/SKILL.md): use `pr-review` for line-by-line review of a specific diff; this skill is for surfacing architecture-level refactors *before* any diff exists.
+- **Composes with** [`code-review`](../code-review/SKILL.md): use `code-review` for line-by-line review of a specific diff; this skill is for surfacing architecture-level refactors *before* any diff exists.
 - Adapted from Matt Pocock's [`improve-codebase-architecture`](https://github.com/mattpocock/skills/tree/main/skills/engineering/improve-codebase-architecture) — same architecture vocabulary, deletion test, deepening process, and parallel interface design. Adapted to compose with the other skills in this library.

@@ -100,7 +100,7 @@ Be honest about scope before deciding. Manufacturing a sub-agent council for a t
 When convened:
 
 1. **Slice by layer / area.** Name 2–4 distinct slices of the codebase the plan will touch (e.g. *Controller + routing*, *Service / domain*, *Persistence + migrations*, *Tests + fixtures*). Each slice gets one sub-agent. Slices must be non-overlapping — if two slices would re-read the same files, merge them.
-2. **Spawn in parallel.** Send a **single message** with N `Agent` calls using `subagent_type=Explore`, one per slice. Each agent gets a self-contained brief:
+2. **Spawn in parallel.** Send a **single message** with N `Agent` calls using `subagent_type=Explore`, one per slice. If a fresh model inventory exists (`~/.claude/model-inventory.json` — parses, `probed: true`, under 7 days old), pass each agent the `scout` chain's first available bare alias as its `model`. Missing or stale with the `model-inventory` skill installed → run that skill once (scan + its probe discipline, sub-cent) before spawning and note it in `Current understanding`; skill absent or discovery fails → spawn with no override. Routing never blocks: a rejected model falls down the chain, then to no override; discovery happens at most once per task and never mid-execution. Each agent gets a self-contained brief:
    - The verbatim task (the `Goal` paragraph).
    - The one slice it owns and what to map within it.
    - What to report: existing pattern for that layer, wiring points the new code must hook into, sibling test class / test file to append to, any forbidden-pattern signals (e.g. "no `ExecuteSqlRaw`", "no direct `fetch` in server components"), and `file:line` citations for every claim.

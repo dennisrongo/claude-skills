@@ -20,7 +20,7 @@ Do **not** auto-trigger for:
 - Architecture refactor suggestions → [`improve-codebase-architecture`](../improve-codebase-architecture/SKILL.md)
 - Feature implementation → [`task-executor`](../task-executor/SKILL.md)
 - Bug triage → [`diagnose`](../diagnose/SKILL.md)
-- A specific diff review → [`pr-review`](../pr-review/SKILL.md) or [`code-review`](../code-review/SKILL.md)
+- A specific diff review → [`code-review`](../code-review/SKILL.md)
 - Session hand-off (different artifact, session-scoped) → [`handoff`](../handoff/SKILL.md)
 
 ## Workflow
