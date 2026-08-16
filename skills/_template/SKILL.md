@@ -1,6 +1,9 @@
 ---
 name: my-skill-name
 description: One sentence describing what this skill does AND when to use it. Be specific about trigger phrases. Make sure to use this skill whenever the user mentions [X], [Y], or [Z], even if they don't explicitly ask for a "[skill name]".
+metadata:
+  clawhub:
+    private: true
 ---
 
 # My Skill Name
