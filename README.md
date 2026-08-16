@@ -69,6 +69,32 @@ skills list
 skills install --all
 ```
 
+### From ClawHub (any MCP-capable agent — OpenClaw, Hermes, etc.)
+
+Every skill is published to [ClawHub](https://clawhub.ai/dennisrongo) under `@dennisrongo/<skill-name>` with commit provenance linked back to this repo. ClawHub is the cross-agent registry — if your agent installs skills from it, you don't need this repo or npm at all.
+
+```bash
+# OpenClaw
+openclaw skills install @dennisrongo/code-review
+openclaw skills install @dennisrongo/diagnose
+
+# Hermes Agent
+hermes skills install clawhub/dennisrongo/code-review
+
+# The whole catalog
+openclaw skills search dennisrongo
+```
+
+```bash
+# Same skills, straight from this repo (Claude Code's native skill dirs):
+npx @dennisrongo/skills install code-review diagnose
+# or pin a copy:
+git clone https://github.com/dennisrongo/claude-skills.git
+cp -r claude-skills/skills/diagnose ~/.claude/skills/
+```
+
+> Skills are plain `SKILL.md` folders — agent-agnostic by design. The npm package targets Claude Code's skill directories (`~/.claude/skills`, `./.claude/skills`) specifically; ClawHub puts the same content within reach of every registry-aware agent.
+
 ### Pinning a version
 
 `npx github:...` resolves to the latest commit on `main`. To pin to a specific commit, branch, or tag:

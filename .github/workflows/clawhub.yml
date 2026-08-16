@@ -1,0 +1,39 @@
+name: Publish to ClawHub
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  clawhub:
+    name: Sync skills to ClawHub
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install ClawHub CLI
+        run: npm install -g clawhub
+
+      - name: Authenticate
+        run: clawhub login --token "${{ secrets.CLAWHUB_TOKEN }}" --label "github-actions-${{ github.repository }}"
+
+      - name: Sync skills (publish new or changed only)
+        run: |
+          clawhub sync --all \
+            --source-repo "${{ github.repository }}" \
+            --source-commit "${{ github.sha }}" \
+            --source-ref "${{ github.ref_name }}" \
+            --changelog "Release ${{ github.event.release.tag_name || github.sha }}"
+
+      - name: Verify sync (fail loudly on auth/scope errors)
+        if: always()
+        run: clawhub whoami
