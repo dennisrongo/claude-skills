@@ -215,6 +215,6 @@ Before showing the draft to the user:
 
 ## Notes
 
-- The library repo's `_template/SKILL.md` is the canonical starting point when working inside `dennisrongo/claude-skills`. The `_` prefix excludes it from installation, so it's safe to leave as-is.
+- The library repo's `_template/SKILL.template.md` is the canonical starting point when working inside `dennisrongo/claude-skills`. It lives outside `skills/` (so `clawhub sync` can't publish it and the installer can't pick it up) — copy it in as `skills/<name>/SKILL.md`.
 - When adapting a skill from an external source (e.g. another GitHub repo), credit the inspiration in a `## Notes` line — don't copy verbatim if the voice doesn't match this repo's existing skills.
 - Skills installed to `~/.claude/skills/` are picked up by every Claude Code session globally; `.claude/skills/` in a project is scoped to that repo. The library repo's `skills/<name>/` is the *source* — not where Claude reads from at runtime.

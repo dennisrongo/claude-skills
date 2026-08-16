@@ -230,8 +230,8 @@ The library lives in [`skills/`](./skills). Each skill is a directory containing
 
 ```
 skills/
-├── _template/              # starting point — the leading underscore skips it from install
-│   └── SKILL.md
+├── _template/              # starting point — lives outside skills/ so ClawHub sync can't pick it up
+│   └── SKILL.template.md
 ├── conventional-commits/
 │   └── SKILL.md
 └── my-new-skill/
@@ -242,7 +242,7 @@ skills/
 
 ### If you'd rather do it by hand
 
-Copy `skills/_template/` to `skills/<your-skill-name>/`, edit the `SKILL.md`, and add a row to the skills table above. Minimum viable file:
+Copy `_template/SKILL.template.md` to `skills/<your-skill-name>/SKILL.md`, edit it, and add a row to the skills table above. Minimum viable file:
 
 ```markdown
 ---
