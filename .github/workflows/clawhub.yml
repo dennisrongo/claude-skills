@@ -18,10 +18,12 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
-      - name: Install ClawHub CLI
-        run: npm install -g clawhub
+      - name: Install ClawHub CLI (pinned — runner dist-tag resolution can serve stale versions)
+        run: |
+          npm install -g clawhub@0.23.3
+          clawhub --cli-version
 
       - name: Authenticate
         run: clawhub login --token "${{ secrets.CLAWHUB_TOKEN }}" --label "github-actions-${{ github.repository }}"
