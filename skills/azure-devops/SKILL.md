@@ -94,6 +94,7 @@ WIQL `WHERE [System.AssignedTo] = '<Display Name>'` → take any returned item �
 - ❌ `--api-version 5.1-preview.1` on `az devops invoke` — it only accepts plain floats (`5.1`, `6.0`, `7.1`).
 - ❌ Piping az output straight into `ConvertFrom-Json` — stderr warnings pollute it. Capture `2>&1 | Out-String` and regex-check (e.g. for `"pullRequestId"`) before parsing.
 - ❌ Using `az rest` when auth is PAT-based — it requires a full `az login`.
+- ❌ Running `az repos` commands from a directory that is not the target repo’s working tree — remote auto-detect fails and surfaces as a misleading `--project must be specified`, even when `--project` and `--organization` ARE both passed. `cd` into the repo first; this bites in multi-repo workspaces whose root is not itself a git repo.
 - ❌ Creating a single PR for a multi-repo work item, or omitting configured reviewers/auto-complete/work-item link.
 - ❌ Describing an attachment you never downloaded and opened — "not viewed" plus the exact error is the only honest report.
 - ❌ Treating zero WIQL rows as a broken query and rewriting it unasked — an empty sprint is an answer.
