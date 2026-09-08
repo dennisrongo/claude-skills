@@ -111,5 +111,5 @@ Ask: **is there a genuine design choice the codebase precedent doesn't already s
 
 ## Notes
 
-- Composes with: `task-executor` (consumes the brief as its spec; routes architectural tasks here), `backlog-planner` (turns an approved brief into roadmap tasks), `autopilot` (an architectural task is a hard stop there — the brief is the route back), `think-like-fable` (interview rigor).
+- Composes with: `task-executor` (consumes the brief as its spec; routes architectural tasks here), `backlog-planner` (turns an approved brief into roadmap tasks), `autopilot` (consumes an `APPROVED` brief as its spec; an architectural task without one is a hard stop there — the brief is the route back), `think-like-fable` (interview rigor).
 - Briefs are project-scoped and should be git-ignored or committed deliberately — an approved brief committed next to the code is a lightweight ADR.

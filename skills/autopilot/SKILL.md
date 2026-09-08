@@ -1,11 +1,23 @@
 ---
 name: autopilot
-description: Fully autonomous end-to-end task run with NO human gates — pulls the work item (via the azure-devops or github skill if installed, or takes an inline task description), plans against the real codebase, executes incrementally with per-increment verification, writes and runs tests, code-reviews and fixes blocking findings, then STOPS before any commit/push/PR and delivers an evidence-backed report with every assumption logged. Replaces interactive questions with a documented-assumption protocol; halts only for destructive actions, missing access, or unimplementable specs. Use this skill whenever the user says "autopilot", "/autopilot", "run task <id> autonomously", "work this task end to end without asking", "full autonomy on this", "do the whole task, skip commits and PR", or launches a headless run with a task id — even if they don't explicitly say "autopilot skill". Do not use when the user wants interactive planning gates (use task-executor) or wants commits/PRs created.
+description: >-
+  Fully autonomous end-to-end run of ONE defined task with no human gates — a work item
+  (Azure DevOps or GitHub id, or inline text) becomes a verified working tree plus an
+  evidence-backed report, and every question that would have been asked becomes a logged
+  assumption with its blast radius. Puts every applicable skill in this library to work on
+  observable predicates, and stops dead before any commit, push, or PR. Hard stops only for
+  a destructive or irreversible step, missing access, an architectural or unimplementable
+  spec, or three failed fixes on one behavior. Use this skill whenever the user says
+  "autopilot", "/autopilot", "run task <id> autonomously", "work this task end to end
+  without asking", "full autonomy on this", "do the whole task, skip commits and PR", or
+  launches a headless run with a task id — even if they don't name the skill. Not for
+  interactive plan approval (task-executor), a queue of tasks (goal-runner), or when
+  commits or PRs should be created (create-pr).
 ---
 
 # Autopilot
 
-The full loop — acquire → plan → execute → test → review → report — with the human gates replaced by an explicit contract. Built for headless/hands-off runs where nobody can answer questions mid-flight.
+The full loop — acquire → plan → execute → test → review → report — with the human gates replaced by an explicit contract, for headless or hands-off runs where nobody can answer questions mid-flight. It does not reinvent review, testing, or diagnosis: every skill in this library that applies is used, on a predicate you can observe, and the report proves which ones ran. Model routing and launch flags live in [references/runtime.md](references/runtime.md).
 
 ## When to use this skill
 
@@ -13,85 +25,140 @@ The full loop — acquire → plan → execute → test → review → report �
 - "work this end to end without asking me anything, skip PR and commits"
 - A headless (`claude -p`) invocation naming a work item or task description.
 
-Do **not** use when the user is present and wants to approve the plan — that's `task-executor` territory.
+Do **not** use when the user wants to approve the plan (`task-executor`), has a queue of tasks (`goal-runner`), or wants a commit or PR produced (`create-pr`).
 
 ## The autonomy contract
 
-1. **No questions.** Never call `AskUserQuestion`; never enter a plan-approval gate. Every question you *would* have asked becomes an ASSUMPTIONS entry: the question, the answer chosen, why, and the blast radius if wrong. Choose the assumption that (a) matches the codebase's existing patterns, and (b) is cheapest to reverse. When those conflict, prefer reversible. "Matches the codebase" is an evidence claim, not a vibe — cite the instance you found (`file:line`); if you searched and found no precedent, say so and justify by reversibility alone.
-   - ❌ "Assumed camelCase keys — matches project conventions." (no instance cited — that's a style guess wearing evidence's clothes)
-   - ✅ "Assumed camelCase keys — every existing DTO in `src/api/dto/` uses them (e.g. `UserDto.ts:12`). Blast radius: one serializer config line."
-2. **Hard stops only** — halt and report (do not improvise) when: the next step is destructive or hard to reverse (data deletion, force push, dropping schema objects, external side effects); required access/credentials are missing; or the task as written contradicts the codebase so fundamentally that both interpretations are expensive. The stop-vs-assume test: *would a wrong guess destroy data, publish something externally, or cost more to undo than redoing the whole task?* No → assume and log; yes → hard stop. A hard stop still produces the full report with state-so-far and the one decision needed to resume.
+1. **No questions.** Never call `AskUserQuestion`; never enter a plan-approval gate. Every question you *would* have asked becomes an ASSUMPTIONS row: question, choice, why, blast radius if wrong. Choose the option that (a) matches the codebase's existing pattern and (b) is cheapest to reverse; when they conflict, prefer reversible. "Matches the codebase" is an evidence claim — cite the instance (`file:line`); if you searched and found none, say so and justify by reversibility alone.
+   - ❌ "Assumed camelCase keys — matches project conventions." (no instance cited)
+   - ✅ "Assumed camelCase keys — every DTO in `src/api/dto/` uses them (`UserDto.ts:12`). Blast radius: one serializer line."
+2. **Hard stops only.** Halt and report (never improvise) when the next step is destructive or hard to reverse (data deletion, force push, dropping schema objects, external side effects); access or credentials are missing; the task is architectural (Phase 0); every reading of the task contradicts the codebase expensively; or three fixes have failed on one behavior. The stop-vs-assume test: *would a wrong guess destroy data, publish something, or cost more to undo than redoing the task?* No → assume and log. Yes → hard stop, with the tree left at the last observed-green state and the one decision needed to resume.
 3. **Never commit, push, or create PRs.** The deliverable is a verified working tree plus the report. The human gets the final gate.
-4. **Scope is the task, exactly.** Adjacent problems you notice go in the report's "Found along the way" list — not into the diff.
-5. **All verification doctrine applies**: a result you did not observe is "not run", never "passed"; quote the evidence.
+4. **Scope is the task, exactly.** Adjacent problems go in "Found along the way", never in the diff.
+   - ❌ Adding a `-j` alias because "it's consistent" when the task said `--json`. ✅ `--json` only; the alias idea goes in Found along the way.
+5. **Unobserved is `not run`, never `passed`.** Every Evidence line carries a tag: `verified` (you ran it and quote the output), `inferred` (follows from a named verified fact), `assumed` (unverified; name what breaks if wrong). "Tests pass" is not "requirements met".
+6. **A present skill is mandatory.** For every routing row whose predicate is true, run the probe; a hit means you open that SKILL.md with the Read tool and follow it. The fallback is legal only when the probe finds nothing, and "the diff is small" never skips a skill — the skill's own body decides how much ceremony a small diff gets. **`used` is an evidence claim:** the Skills used row quotes the heading of the section you applied, which you cannot do without opening the file. A present skill you did not open is `skipped`, and one `skipped` row caps the Outcome at `done-with-caveats: skipped <skill>`.
+   - ❌ "code-review is for bigger diffs; I did a focused self-review instead." (present, predicate true, skipped)
+   - ❌ "task-executor — used (inspection discipline)" with no file opened — you know its name, not its rules; that row is `skipped`.
+   - ✅ "code-review present → Read `skills/code-review/SKILL.md` → applied 'When to convene the council' → single-pass; 0 blockers."
+
+## Skill routing table
+
+**Probe** (run it, quote the result): `ls skills/<name>/SKILL.md .claude/skills/<name>/SKILL.md ~/.claude/skills/<name>/SKILL.md 2>/dev/null`. Any path printed, or the Skill tool listing the name → present. Nothing → absent → fallback column, marked `absent` in the report. Where a row names two skills, pick by its predicate.
+
+| Phase | Skill | Use it when (observable predicate) | If absent |
+|---|---|---|---|
+| 0 | `azure-devops` / `github` | A work-item or issue id was given; `git remote -v` shows `devops.example.invalid`/`legacy-devops.example.invalid` → azure-devops, `github.com` → github | `az boards work-item show --id <id>` / `gh issue view <id> --json title,body,comments` if the CLI works; else hard stop and ask for the task text |
+| 0 | `design-brief` | `.claude/design-briefs/` holds an `APPROVED` brief whose Intent line matches → it is the spec. Task classified architectural → hard stop naming this skill as the route back | Hard stop still; the report lists the design decisions the human must make |
+| 0 | `codebase-explainer` | `ONBOARDING.md` exists → read it before inspecting (never run the skill; writing docs is out of scope) | Skip |
+| 0 / any | `handoff` | `.claude/handoffs/` holds a file naming this task → resume from its Next Session Prompt; context runs low mid-run → write one | Write objective, progress, decisions, next step to `.claude/handoffs/` |
+| 0 | `model-inventory` | Sub-agents will be spawned (see references/runtime.md) | Spawn with no model override |
+| 1 | `task-executor` | Always: Phase 2 (inspection council threshold) and Phase 5 (Requirements table shape) | Read every touched file plus one precedent per new pattern; ≥2 layers → parallel `Explore` agents, one per layer |
+| 1 | `think-like-fable` | Always: §6 self-grill of the plan | Ask: what discovery would invalidate the plan, which increment is riskiest, what am I assuming — then reorder |
+| 1 | `dotnet-onion-api` / `nextjs-app-router` / `tauri-2-app` | The marker exists: `*.sln`/`*.csproj` with Domain/Application/Infrastructure projects; `next.config.*`; `src-tauri/tauri.conf.json` → convention source for the plan | Follow the nearest existing slice, route, or command |
+| 1 | `upgrade-deps` / `write-a-skill` | The task text IS a dependency bump, or creates/edits a `SKILL.md` → that skill's workflow is Phase 2 | One major at a time with the suite quoted green between; `_template/SKILL.template.md` plus CLAUDE.md |
+| 2 | `safe-refactor` | An increment is planned as behavior-preserving (rename, extract, move, inline) | Safety net first, suite green between mechanical steps, never change an assertion |
+| 2 | `write-tests` | Every increment that adds or changes behavior (red first, quoted) | Write the test, run it red, quote it, then the minimum code |
+| 2 | `diagnose` | A verification fails and the error text does not name the one thing to change | Reproduce → minimise → one falsifiable hypothesis → fix → regression test |
+| 3 | `e2e-verify` / `maestro-mobile-test` | Diff touches browser-rendered UI or a web route AND a local run script exists; `package.json` depends on `react-native`/`expo` AND a device is reachable | Log `not run: no browser / device available` |
+| 4 | `code-review` | Always | Walk the diff as a reviewer: correctness, error paths, dead code, DRY, tests; a blocker must state *this input → this wrong outcome* |
+| 4 | `regression-hunt` | Any one of: the diff renames anything; changes a signature, default, or shared state (an added optional parameter counts); edits a file with ≥3 importers (`grep` count) | List every caller of each changed symbol and run their tests |
+| 4 | `security-review` | Diff touches auth/sessions, input validation, SQL/shell/HTML sinks, file paths from input, secrets, crypto, or adds an endpoint | Check those classes; report "nothing found in the classes checked" |
+| 4 | `sql-review` | Diff contains `.sql` files, stored procedures, or raw SQL strings | UPDATE/DELETE have WHERE, no dynamic-SQL concatenation, errors not swallowed |
+| 4 | `migration-safety` | Diff adds or changes a file under a migrations directory (`migrations/`, `Migrations/`, `prisma/migrations/`, `alembic/`) | Flag destructive DDL and missing rollback |
+| 4 | `api-contract-review` | Diff changes a route/handler signature, a request/response type, or an OpenAPI/GraphQL schema | Diff the before/after surface; list removed or renamed fields and status-code changes |
+| 4 | `ship-it` | Diff adds an endpoint, background job, feature flag, secret, or migration | Note logging, error-handling, and rollback gaps in Found along the way |
+| 5 | `conventional-commits` | Always: the "Your move" commit message | `<type>(<scope>): <summary>` with the work-item id |
+| 5 | `create-pr` / `backlog-planner` | Always name `/create-pr` as the human's next step; Found along the way has ≥1 item → also suggest `/backlog-planner`. Neither is run | Name `git push` plus the provider's PR command; suggest adding the items to the backlog |
+| stop | `improve-codebase-architecture` | Three failed fixes on one behavior → named in the hard-stop report as the route | Report the coupling that defeated each fix |
+
+Two skills are deliberately absent: `goal-runner` is autopilot's consumer, not a dependency, and `humanizer` is never applied to your own report unless the user asked for it.
 
 ## Workflow
 
-### Phase 0 — Acquire the task
+### Phase 0 — Acquire, baseline, classify
 
-Work item id given → pull it with the `azure-devops` or `github` skill if installed (description, comments, AND embedded screenshots — view them; acceptance criteria hide in images and comments). Inline description given → use it directly. Exit gate: restate "This task needs `___` so that `___`" in one line. Can't fill the second blank → derive it from the artifacts; still can't → hard stop.
-
-**Branch posture.** Never implement on `main`/`master`/the default branch: if that's where you are, create a branch named from the work item (following the repo's existing branch convention from `git branch -a`) and log it as an assumption. **Scope classification** is logged too: a feasibility *spike* keeps nothing (built code is labeled throwaway in the report); an *architectural* task — new subsystem, restructured boundaries, interfaces others depend on — is a hard stop, because every assumption it forces is expensive to reverse — the report names `design-brief` (if installed) as the route back: an approved brief in `.claude/design-briefs/` turns the task into a bounded one this skill can run.
+1. **Acquire.** Id given → route by remote (table); never reconstruct a task from its id, title, or branch name alone. Read description, comments, AND embedded screenshots (an image you did not open is `not viewed`). Quote acceptance criteria verbatim.
+2. **Restate:** "This task needs `___` so that `___`." Can't fill the second blank from the artifacts → hard stop.
+3. **Branch posture.** On `main`/`master`/the default branch → create a branch named from the work item, following `git branch -a` conventions, logged as an assumption.
+4. **Baseline.** Run the suite and build before the first edit; quote the summary line. If any output must stay unchanged, capture it to a file now for a later diff.
+5. **Classify, out loud.** *Spike* → anything built is labeled throwaway. *Bounded* (changes a flow that exists in this repo) → proceed. *Architectural* (new subsystem, restructured boundaries, interfaces others depend on) → hard stop; `design-brief` is the route back. Hidden complexity mid-run upgrades the class, never downgrades it.
 
 ### Phase 1 — Plan (self-gated, not user-gated)
 
-Inspect the code the task touches (use `task-executor`'s inspection discipline; spawn parallel explorers for multi-layer changes). Draft increments, each with its own verification. Then **self-grill the plan**: attack it the way `think-like-fable` §6 attacks a conclusion — what mid-plan discovery would invalidate it? Which increment is riskiest? Reorder so that increment runs first. Record the plan verbatim in the report; it replaces the approval gate as the accountability artifact.
+Inspect under `task-executor`'s discipline (its threshold decides inline reads vs. parallel explorers); load the stack skill the table selects. Draft increments, each with its own verification command. **Self-grill** per `think-like-fable` §6: what discovery would invalidate the plan? Which increment is riskiest? Run that one first. The plan goes in the report verbatim; it replaces the approval gate.
 
 ### Phase 2 — Execute incrementally
 
-One increment at a time; observed verification after each before the next. Where a test seam exists, an increment that adds or changes behavior **opens with its failing test** (run it — red for the right reason, quoted) and closes with the minimum code that turns it green; Phase 3 then covers what the increments didn't. Before starting each increment, restate the Phase 0 one-liner — if the increment doesn't serve it, the plan has drifted: re-plan, don't push through. A mid-course finding that contradicts the plan → re-plan (log the change and reason). Track assumptions as they accumulate — an assumption load-bearing for 3+ increments gets re-verified against the code, not carried on faith, and an assumption that rests on *another* assumption multiplies both blast radii: re-verify the base one before stacking a third on top.
+One increment at a time, observed verification after each. A behavior increment **opens with its failing test** under `write-tests` (red for the right reason, quoted) and closes with the minimum code that turns it green. Before each increment, restate the Phase 0 one-liner; an increment that doesn't serve it means the plan drifted — re-plan. An assumption load-bearing for 3+ increments is re-verified against the code; one resting on another multiplies both blast radii — re-verify the base first.
 
-**Command-failure protocol (autonomous variant).** A command fails → read the full error output, change exactly one thing it names, retry once. A second failure on the same step means the approach is wrong, not the luck: re-plan the increment around it, or hard stop if there's no route — never loop retries hoping for a different result, and never continue as if it passed. **Three failed fix attempts on the same behavior across increments is a hard stop**, not a fourth attempt: each fix surfacing new coupling somewhere else means the pattern is wrong, and an unattended run must not "refactor its way out". With nobody watching, silent retry-thrash burns the run and confabulated success poisons the report; both are worse than an honest stop.
+**Command-failure protocol.** A command fails → read the full error, change exactly one thing it names, retry once. Second failure on the same step → the approach is wrong: run `diagnose` if the error doesn't name the fix, then re-plan or hard stop. **Three failed fixes on one behavior is a hard stop**, never a fourth attempt. **A step that cannot go green is reverted** (`git diff -- <files>` shows what to undo) so the tree sits at the last observed-green state.
 
 ### Phase 3 — Test
 
-New or changed behavior gets tests per the `write-tests` discipline if installed (risk-ranked, each proven able to fail). Run the full relevant suite; quote the summary line. Suite fails on something you didn't touch → note it as pre-existing (verify by stashing your changes and re-running if cheap).
+Run the full suite for every package containing a changed file, plus whatever CI runs for those paths; quote the summary line. Live verification per the table when its predicate holds. A failure in untouched code → stash, re-run, unstash to prove it pre-existing when the suite takes ≤5 minutes; otherwise tag the claim `assumed`.
 
 ### Phase 4 — Review, with fix authority for blockers
 
-Run the `code-review` skill if installed (else a focused diff review). Autonomous exception to its ask-first rule: **blocking findings are fixed immediately** — that permission is inherent to this mode. Suggestions and nits are logged, NOT applied (that's scope creep in an unattended run). Re-review after fixes; loop until zero blockers or two iterations — remaining blockers after two passes go to the report as known issues, prominently.
+Run `code-review` (always) and every Phase 4 lens whose predicate is true. Autonomous exception to code-review's report-first rule: **blocking findings are fixed immediately**, one at a time, each re-verified. Suggestions and nits are logged, NOT applied. Re-review; loop until zero blockers or two iterations — survivors are known issues that downgrade the Outcome.
 
 ### Phase 5 — Report (the deliverable)
 
-In order: **Outcome** (one sentence — done / done-with-caveats / hard-stopped where). "Done" is earned only when every phase exit was observed **and** the acceptance criteria from Phase 0 were re-read line by line with observed evidence pointed at each — tests passing is not requirements met; a single `not run`, an unexplained test failure, or a surviving blocker makes it "done-with-caveats" *with the caveat named in the same sentence* — never buried three sections down. **What changed** (files + why). **Evidence** (quoted test/build/run output per the doctrine tags: verified/inferred/assumed). **Review outcome** (findings, fixes applied, anything remaining). **ASSUMPTIONS table** (question → choice → why → blast radius). **Found along the way.** **Your move** (the commit/PR steps deliberately left to the human, ready to paste).
+Fill this exact structure; keep the headings verbatim, replace every `<...>`, delete no section (an empty one says `none`):
 
-## Sub-agent model routing
+````markdown
+## Outcome
+<one sentence: done | done-with-caveats: <caveat> | hard-stopped at Phase <n>: <decision needed>>
+## Requirements
+| # | Requirement (task text, quoted) | Evidence (test name / command → output / file:line) | Status |
+|---|---|---|---|
+| 1 | "<quoted>" | <observed evidence> | met / gap / deviation |
+## What changed
+- `<file>` — <why>
+## Evidence
+- <command> → <quoted output> — verified | inferred from <fact> | assumed (<what breaks if wrong>)
+- <increment>: red `<quoted failing line>` → green `<quoted summary>` — verified
+## Review outcome
+<lenses run; findings by category; fixes applied; anything remaining>
+## Skills used
+| Skill | Predicate | Probe | Result | Section applied (heading quoted from the file you opened) |
+|---|---|---|---|---|
+| <name> | true: <evidence> | present at <path> / absent | used / skipped / absent → fallback | "<heading>" or — |
+Predicates false: <comma-separated skills whose predicate was false>
+## Assumptions
+| Question | Choice | Why (file:line or "no precedent found") | Blast radius if wrong |
+|---|---|---|---|
+| <q> | <choice> | <why> | <blast radius> |
+## Found along the way
+- <adjacent problem noticed, not touched>
+## Your move
+```bash
+<paste-ready commit command per conventional-commits>
+# then: /create-pr   (when create-pr is absent: the push and provider PR commands instead)
+```
+````
 
-Resolve sub-agent models from the `routing.agent_tool` chains in `~/.claude/model-inventory.json`, under the same trust gate as `goal-runner`: the file counts only if it parses, `probed` is true, and `generated_at` is under 7 days old. When it fails the gate (missing, stale, unprobed) and the `model-inventory` skill is installed, run that skill's workflow **once at kickoff** — free scan plus its own probe discipline, a handful of one-line probes costing cents at most — then route from the fresh file, logging the discovery run (what was probed, what it found) in the report. Skill not installed, or discovery fails → spawn with no model override and log one line. Hard boundaries: discovery runs at most once per run and never mid-run (mid-run model failures use the chain fallback below, not re-probing); a discovery failure is a report note, never a hard stop; the inventory file is only ever written by the model-inventory workflow itself.
+"Done" is earned only when every Requirements row is `met` with observed evidence, every Evidence line is `verified`, Review outcome has zero surviving blockers, and no Skills used row says `skipped`. Any `gap`, `not run`, `skipped`, `assumed` on a load-bearing claim, or surviving blocker makes it `done-with-caveats` with the caveat in the same sentence — never buried below.
 
-- Phase 1 inspection explorers → `scout` chain; Phase 4 review sub-agents (e.g. `code-review` lenses) → `reviewer` chain; any delegated coding → `coder`, or `coder_high_risk` when the task touches auth, money, migrations, or 3+ layers.
-- Take each chain's first entry not marked `unavailable`/`blocked-by-auth`/`quota-exhausted`; pass bare aliases only (`haiku`/`sonnet`/`opus`/`fable`), skipping anything else. A spawn rejected over its model falls to the next entry, then to no override — logged in the report, never a hard stop.
-
-## Launching autonomously (harness side)
-
-The skill removes *its* gates; the harness must not add prompts back:
-
-- Interactive session, hands-off: run with auto-accepting permissions (e.g. `--permission-mode acceptEdits`, or the project's pre-approved allowlist).
-- Headless: `claude -p "autopilot task 12345" --permission-mode acceptEdits` (elevate to `bypassPermissions`/`--dangerously-skip-permissions` only in a sandboxed or disposable environment — it removes the last safety net).
-- The never-commit rule means even a fully permissive run can't publish anything; that guardrail lives in this skill, not in permissions.
+**Delivery gate — answer each before handing back; any "no" → fix it or downgrade Outcome:** zero questions asked? zero commits/pushes/PRs (`git status`, `git log` quoted)? every behavior increment has a quoted red and green? every Requirements row has evidence or says `gap`? every routing row with a true predicate and a present skill marked `used` **with a quoted heading** (no heading → `skipped` → Outcome downgraded)? every Evidence line tagged? every Assumptions row cites `file:line` or says "no precedent found"?
 
 ## Examples
 
-### Example 1: headless work item
-
-**User (via `claude -p`):** "autopilot task 4711"
-
-**Claude:** pulls #4711 with the provider skill (reads two screenshots showing the expected UI state), plans 4 increments, executes with per-increment checks, adds 3 tests (each seen red first), review finds one blocker (missing null guard) → fixed → re-review clean, reports with 2 logged assumptions and paste-ready commit commands. No commits made.
-
-### Example 2: hard stop done right
-
-**User:** "run task 8912 end to end without asking"
-
-**Claude:** task says "remove the legacy sync"; inspection shows production traffic still hitting it (verified from recent log timestamps). Destructive + contradicts the spec → hard stop after Phase 1 with the evidence, state-so-far, and the single decision needed ("confirm the consumer at X is decommissioned").
+- **Headless work item.** "autopilot task 4711" → remote is `devops.example.invalid` → `azure-devops` pulls #4711 with two screenshots (both viewed); baseline `47 passed` quoted; 4 increments, each red-then-green under `write-tests`; the diff adds an endpoint → `code-review`, `security-review`, `api-contract-review`, `ship-it` run, one blocker (missing authz) fixed and re-reviewed; report has Requirements 5/5 met, a Skills used table with quoted headings, 2 cited assumptions, a `conventional-commits` block. No commits.
+- **Hard stop done right.** "run task 8912 end to end without asking" → task says "remove the legacy sync"; inspection shows production traffic still hitting it (log timestamps quoted). Destructive and contradicts the spec → hard stop after Phase 1, tree untouched, report names the one decision ("confirm the consumer at X is decommissioned").
 
 ## Anti-patterns
 
-- ❌ Asking "just one quick question" mid-run — the user is not there; that's what the ASSUMPTIONS log is for.
-- ❌ Committing "to save progress" or creating a draft PR "for convenience" — the human gate is the point.
-- ❌ Applying suggestion-level review findings unattended — fix blockers only; log the rest.
-- ❌ Soft-stopping on mere ambiguity ("the spec doesn't say which format") — choose per the contract, log it, continue.
-- ❌ Reporting "done" with unobserved checks, or burying a failed suite in the middle of the report.
-- ❌ Retrying a failing command verbatim until it "passes" — one change, one retry, then re-plan or stop.
-- ❌ Logging an assumption as "matches codebase conventions" with no `file:line` — that's a guess with a paper trail.
-- ❌ Expanding scope because the code "really needed it" — the task, exactly; the rest is a list item.
-- ✅ Zero questions, zero commits, observed evidence for every claim, assumptions on the record, human decides what ships.
+- ❌ Asking "just one quick question" mid-run — the user is not there; that's what Assumptions is for.
+- ❌ Committing "to save progress" or opening a draft PR "for convenience".
+- ❌ Skipping a present skill because the diff "felt small", or marking one `used` without a heading quoted from the file you opened.
+- ❌ Writing the test after the code and quoting only green — no quoted red, no behavior increment.
+- ❌ Applying suggestion-level findings unattended, or expanding scope because the code "really needed it".
+- ❌ Soft-stopping on mere ambiguity — choose per the contract, log it, continue.
+- ❌ Reporting "done" with a `gap` row, a `skipped` row, an unobserved check, or a buried failed suite.
+- ❌ Retrying a failing command verbatim, or leaving a half-applied step in the tree at a hard stop.
+- ✅ Zero questions, zero commits, every present skill opened and used, quoted red and green per increment, a Requirements row per criterion, human decides what ships.
+
+## Notes
+
+- Composes with every skill in the routing table, plus `goal-runner`, which delegates per-task execution to this discipline. All optional — the fallback column is the degraded path, and the Skills used table shows which path was taken.
