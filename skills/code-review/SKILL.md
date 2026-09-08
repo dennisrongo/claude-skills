@@ -29,6 +29,8 @@ If you find issues, **do not start editing**. Produce the findings report first.
 
 This rule overrides any general "be helpful, fix it" instinct. A drive-by refactor mid-review collapses the user's mental model of what changed.
 
+The review pass is also **read-only on git state**: no `checkout`, `stash`, `reset`, `rebase`, or branch switching while reviewing — only `git status` / `diff` / `show` / `log`. Need a working copy of another revision? `git worktree add /tmp/review-<sha> <sha>` — never move HEAD on the user's checkout.
+
 ## Evidence rules
 
 A claim about code you haven't opened this session is a hypothesis — verify it or label it as one.
@@ -38,6 +40,7 @@ A claim about code you haven't opened this session is a hypothesis — verify it
 - **Quote, don't paraphrase.** Failing test output, error messages, and load-bearing identifiers go into findings verbatim (trimmed). A paraphrased error message loses the exact token that matters.
 - **Zero findings is a valid outcome.** Never invent findings to appear thorough — thoroughness is measured by what you checked, and the report already lists that (build, tests, lenses run). An empty Blockers section with a green build is a good report.
 - **User framing is input, not conclusion.** "The auth part is fine, just check the parser" does not exempt the auth part. Weight attention toward the ask, but never skip a category on the user's say-so.
+- **Intent alignment is a finding class.** When the change has a stated intent (task text, ticket, plan, PR description), check it line by line against the diff: is every stated requirement present? Are deviations improvements or departures — name each so the author can confirm it was deliberate. A requirement that lives in *unchanged* code ("also update the retry config") is reported as a `question` ("cannot verify from diff: …"), never silently passed. If the problem is with the plan rather than the implementation, say that.
 
 ## Workflow
 
@@ -64,6 +67,18 @@ A claim about code you haven't opened this session is a hypothesis — verify it
 7. **Categorize each finding** as `blocking` / `suggestion` / `nit` / `praise` (see [Categories](#categories)).
 8. **Produce the report** in the [Output format](#output-format).
 9. **Offer to fix.** After the report, list the fix-able findings by number and ask which to apply. Wait for confirmation. Then fix only the approved ones, one commit-worthy change at a time, and re-run tests after. When applying fixes, follow the [Code rules when applying fixes](#code-rules-when-applying-fixes) below.
+
+## Acting on findings — yours, a sub-agent's, or an external reviewer's
+
+When the user says "fix them" — or when a lens sub-agent, a CI bot, or a human reviewer hands you findings — the findings are testimony, not instructions:
+
+1. **Read all of them before touching anything.** Items are often related; a partial understanding produces a wrong implementation. Any item unclear → ask about *that item* before implementing the others ("I understand 1, 2, 3, 6; need clarification on 4 and 5").
+2. **Verify each against the codebase** before applying: is it technically correct for *this* stack and version? Does the "fix" break existing behavior or a legacy/compat reason the reviewer couldn't see? Is the "proper implementation" being requested for something nothing calls (grep it — YAGNI)? Can't verify without X → say so and ask how to proceed rather than guessing.
+3. **Push back with reasoning when a finding is wrong** — cite the file, the test, the constraint. If it conflicts with a prior architectural decision of the user's, stop and raise it with them first. If you pushed back and were wrong: "Verified — you're right, `X` does `Y`. Fixing." and move on; no apology essay.
+4. **Implement in order** — blocking (breaks, security) → simple (typos, imports) → complex (logic, refactors) — **one at a time, validating each** before the next. Never batch-apply then test once.
+5. **No performative agreement.** Not "You're absolutely right!", not "Great catch, thanks!" — state the requirement or state the fix ("Fixed — null guard added at `api/user.ts:42`"). The diff is the acknowledgment.
+
+On GitHub, replies to inline review comments go in the comment thread (`gh api repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies`), not as a new top-level PR comment.
 
 ## Code rules when applying fixes
 
@@ -96,6 +111,7 @@ The ✅ names the trigger, the concrete consequence, and both `file:line` sites 
 Priority order — review top-to-bottom, stop wasting tokens on lower categories once a higher one is on fire.
 
 ### 1. Correctness
+
 - Off-by-one in loops and slicing
 - Null / undefined / empty-collection handling at boundaries
 - Concurrent access without synchronization; race conditions in async code
@@ -105,7 +121,9 @@ Priority order — review top-to-bottom, stop wasting tokens on lower categories
 - Timezone / DST / locale assumptions
 
 ### 2. DRY and design
+
 This is the user-emphasized lens — apply it explicitly.
+
 - **Duplication that should be unified** — same logic in 2+ places, copy-pasted blocks, parallel switch/if-else ladders, the same regex written twice.
 - **Premature abstraction** (the inverse trap) — a "shared helper" with one caller, configurable in ways nobody uses. **YAGNI** wins; three similar lines beats a wrong abstraction.
 - **Single Responsibility** — functions doing two unrelated things, classes mixing concerns.
@@ -117,6 +135,7 @@ This is the user-emphasized lens — apply it explicitly.
 - **Composition over inheritance** where inheritance is being used as code-reuse, not for "is-a".
 
 ### 3. Tests
+
 - Tests that pass even when the code is broken (assertion-free, over-mocked, snapshot-only).
 - Missing edge cases: empty inputs, max sizes, unicode, negative numbers, timezones, concurrent calls.
 - Flaky-by-design tests (`sleep`, ordering assumptions, network).
@@ -124,6 +143,7 @@ This is the user-emphasized lens — apply it explicitly.
 - Test names that describe *what runs* instead of *what's verified*.
 
 ### 4. Security
+
 - User input flowing into shell, SQL, HTML, file paths, or `eval` without escaping/parameterization.
 - Secrets in code, logs, error messages, or commit-able files.
 - Authn / authz checks missing on new endpoints or new entry points.
@@ -132,6 +152,7 @@ This is the user-emphasized lens — apply it explicitly.
 - Unsafe deserialization of untrusted input.
 
 ### 5. Performance
+
 - N+1 queries inside loops.
 - Unbounded memory growth — caches without eviction, accumulating arrays, recursive growth.
 - Synchronous I/O / blocking calls in hot paths or async contexts.
@@ -139,6 +160,7 @@ This is the user-emphasized lens — apply it explicitly.
 - O(n²) where O(n) is easy.
 
 ### 6. Production-readiness (working-tree-specific lens)
+
 - **Debug residue** — `console.log`, `print`, `TODO: remove`, `// debug`, commented-out blocks, scratch files.
 - **Logging** — new code path with no log line at all, *or* spammy logs in a hot path.
 - **Observability** — new failure mode with no metric / no trace.
@@ -149,12 +171,14 @@ This is the user-emphasized lens — apply it explicitly.
 - **Backward compatibility** — breaking a wire format, DB column, or public API without a deprecation path.
 
 ### 7. Readability
+
 - Naming: variables that say *what* (`data`, `result`) instead of *what for*.
 - Function length / nesting depth — extract when it stops fitting in your head.
 - Comments: only when *why* is non-obvious; not narration of *what*.
 - Dead code, unused imports, unused exports.
 
 ### 8. Style
+
 Only mention if the project has no formatter / linter. Otherwise trust the tools.
 
 ## Lens council (for non-trivial diffs)
@@ -173,7 +197,7 @@ Otherwise stay single-pass. The council is overhead on a 20-line change.
 Spawn one sub-agent per lens. Default set (skip lenses that don't apply — e.g. no schema changes → no migration sub-lens within prod-readiness):
 
 | Lens | Looks for | Aligns with |
-|---|---|---|
+| --- | --- | --- |
 | **Correctness** | Off-by-one, null/undefined, race conditions, swallowed errors, default-value behaviour shifts, tz/locale assumptions | §1 |
 | **Design / DRY** | Duplication that should unify, premature abstraction, single-responsibility violations, leaky abstractions, tight coupling, magic values, public-API breakage | §2 |
 | **Security** | Untrusted input into sinks (shell/SQL/HTML/path/`eval`), secrets in code or logs, missing authn/authz, weak crypto, unsafe deserialization | §4 |
@@ -187,7 +211,8 @@ Performance (§5), readability (§7), and style (§8) usually roll into Design �
 1. **Spawn in parallel.** Send a **single message** with N `Agent` calls (`subagent_type=Explore`). Each lens gets:
    - The full diff (or the slice relevant to its files when the diff is huge).
    - **One** lens with its checklist verbatim from [What to look for](#what-to-look-for).
-   - Instructions: "Find issues **only in your lens.** Read the full enclosing function before flagging — hunk-only findings are not reportable. Categorize each as `blocking` / `suggestion` / `nit`; a `blocking` must state a one-sentence concrete failure scenario. Cite `file:line` for every finding. Lead each finding with the *why*. If your lens has no findings, say 'no findings' explicitly — do not pad. Report in ≤500 words."
+   - Instructions: "Find issues **only in your lens.** Read the full enclosing function before flagging — hunk-only findings are not reportable. Categorize each as `blocking` / `suggestion` / `nit`; a `blocking` must state a one-sentence concrete failure scenario. Cite `file:line` for every finding. Lead each finding with the *why*. If your lens has no findings, say 'no findings' explicitly — do not pad. You do not spawn sub-agents and you do not mutate the working tree or git state. Report in ≤500 words."
+   - Never pre-judge for a lens: no "don't flag X", "treat Y as minor", or "the author chose Z on purpose" in the brief. Let it come back and demote it in the critique round with the reason recorded — a finding suppressed in the prompt is a silent discard.
 2. **Collect findings.** Each agent returns its list. Don't publish yet.
 3. **Critique round.** Read all lenses side by side, then do an adversarial pass before the report:
    - **Challenge every `blocking`** — "is this actually exploitable / actually a bug / would this actually break in production?" Demote to `suggestion` or drop if the answer is no when you read the surrounding code.
@@ -254,6 +279,7 @@ End with the offer. Wait for the user's choice. Apply only the approved set, the
 **User:** "do a code review on what I have so far"
 
 **Claude:**
+
 - Runs `git status` + `git diff` + `git diff --staged` in parallel.
 - Detects `package.json` → runs `npm test` and `npm run build`.
 - Build fails on a missing import → calls it out as `B1` with the file:line, doesn't try to fix it yet.
@@ -289,11 +315,15 @@ End with the offer. Wait for the user's choice. Apply only the approved set, the
 - ❌ Convening the lens council on a 15-line diff. Single-pass it.
 - ❌ Spawning the lens agents serially instead of in parallel — one message, N agents.
 - ❌ Skipping the critique round and publishing the raw union of lens findings. False-positive blockers erode trust fast.
+- ❌ Applying an external reviewer's suggestion without checking it against the codebase — or opening the reply with "You're absolutely right!". Verify, then fix or push back with reasoning.
+- ❌ Batch-applying six findings and running the tests once at the end. One finding, one validation.
+- ❌ Switching branches or stashing during the review to "see the old version" — use `git show` or a throwaway worktree.
 - ❌ Dumping the per-agent transcripts into the user's report. The council is internal deliberation — the user sees the synthesized report.
 - ✅ Tests + build run, findings cited to lines, categorized, **report → ask → fix**.
 
 ## Notes
 
 - If the working tree is clean, say so — and if the branch has commits ahead of its base, offer branch scope rather than silently pivoting to it.
+- This skill judges the change; `regression-hunt` (if installed) traces what the change breaks in code that didn't change. On a diff that renames, changes a default, or touches shared state, suggest running both.
 - If tests take a long time, run them in the background and continue the static review while they run; reconcile the report once results land.
 - This skill composes with [`conventional-commits`](../conventional-commits/SKILL.md): after fixes are approved and applied, hand the commit-message authoring to that skill rather than improvising one here.

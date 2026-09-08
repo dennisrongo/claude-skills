@@ -1,6 +1,16 @@
 ---
 name: sql-review
-description: Pre-commit SQL code review for uncommitted database changes. Detects antipatterns that cause real production incidents — `sp_send_dbmail` in CATCH blocks (masks the real error as a misleading permission denial), broken retry patterns (`@retry` declared without a surrounding `WHILE` loop), swallowing CATCH blocks (no `THROW`/`RAISERROR`/log), new tables created without a primary key or any index (silent perf-then-deadlock killer), parameter-vs-column type mismatches (8152 truncation risk), `EXEC()` string concatenation without `sp_executesql` parameters (SQL injection), `NOLOCK` in write paths, `UPDATE`/`DELETE` without `WHERE`, cursors without `READ_ONLY FORWARD_ONLY LOCAL`, hardcoded env values (emails, server names, paths), cross-DB references like `msdb.dbo.*`, missing `SET NOCOUNT ON`, missing `GRANT EXECUTE` on `CREATE PROC`, `BEGIN TRANSACTION` outside `TRY`/`CATCH`, and vestigial control-flow comments hinting at refactor leftovers (e.g. `-- end while loop` with no `WHILE`). Reports findings as `BLOCKER` / `WARN` / `INFO` with `file:line` citations and per-finding fix recommendations. **Never edits SQL** — surfaces findings for human review. Use this skill whenever the user says "/sql-review", "review my SQL", "review the SQL diff", "lint the SQL", "check my SQL changes", "SQL pre-commit check", "audit my stored proc", or "any SQL antipatterns in this diff" — even if they don't explicitly say "SQL review skill". Distinct from `code-review` (general best-practice review) — this carries SQL-specific patterns that surface DB-layer production incidents.
+description: >-
+    Pre-commit SQL code review for uncommitted database changes. Detects antipatterns that cause
+    real production incidents — broken TRY/CATCH error handling, swallowed errors, retry patterns
+    without loops, tables missing PK/indexes, type-mismatch truncation, dynamic-SQL injection,
+    NOLOCK in write paths, UPDATE/DELETE without WHERE, hardcoded env values, cross-DB refs, and
+    more (full catalog in the skill body). Reports BLOCKER/WARN/INFO findings with file:line
+    citations and fixes. Never edits SQL. Use this skill whenever the user says "/sql-review",
+    "review my SQL", "review the SQL diff", "lint the SQL", "check my SQL changes", "SQL
+    pre-commit check", "audit my stored proc", or asks about SQL antipatterns in a diff — even
+    if they don't name the skill. Distinct from code-review (general review) — this carries
+    SQL-specific incident patterns.
 ---
 
 # SQL Review

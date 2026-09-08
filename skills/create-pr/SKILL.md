@@ -25,18 +25,21 @@ State in one line: work item/ticket id, branch name, and every repo the change t
 
 - Working tree clean? Uncommitted changes are either committed (per the project's subject convention) or explicitly left out — ask, don't guess.
 - Commit subjects on the branch follow the configured pattern (e.g. `#<id> (<SCOPE>) <description>`). Fix outliers only with user approval (rewriting pushed history needs explicit consent).
+- **Green on the exact tree you publish.** The review gate (step 2) runs the suite; if anything changes after it — a blocker fix, a squash, a rebase — re-run and quote the summary line before pushing. A green run on an earlier tree proves nothing about this one. Red → stop; the flow resumes after green.
+- **Confirm the base.** The configured target branch is the default, but verify it's what this branch actually forked from (`git merge-base`, the branch's upstream, or the work item). Mismatch → ask "this branch split from `<X>` — target `<X>` or the configured `<Y>`?" A PR against the wrong base reviews commits that aren't yours and is expensive to redo.
 
 ### 2. Review gate — before publishing, not after
 
 - Run the `code-review` skill in branch scope on the branch if installed (grouped by task id); otherwise perform a focused diff review of the branch against its **configured target** (`git diff <targetBranch>...HEAD`) — a diff against the wrong base reviews commits that aren't yours or misses ones that are.
 - If SQL files changed, also run `sql-review` if installed.
+- If the branch renames a symbol, changes a default or signature, or touches shared state (schema, config, flags, events), also run `regression-hunt` if installed; a `confirmed` regression is a blocking finding.
 - **Blocking findings stop the flow** — but "blocker" carries a burden of proof: name the concrete failure scenario in one sentence ("user does X → wrong Y"). No scenario → it's a suggestion, and suggestions don't stop the flow. Each real blocker is either fixed, or explicitly waived by the user — a waiver is recorded in the PR description ("Known issue: X — accepted because Y"). Zero findings is a valid outcome; proceed.
 - ❌ "Reviewed — looks good" with no findings listed and no diff quoted → that's recognition, not review.
 - ✅ "branch review: 0 blocking, 2 suggestions (deferred, listed in PR body). Proceeding."
 
 ### 3. Publish
 
-`git push -u origin <branch>` per repo — **only with user approval; never push unasked.** One approval can cover all repos of the same work item if the user says so.
+`git push -u origin <branch>` per repo — **only with user approval; never push unasked.** One approval can cover all repos of the same work item if the user says so. A rejected push means the remote moved: fetch and investigate; **never force-push** on your own initiative — only on the user's explicit request, and never to a shared branch.
 
 ### 4. Create — provider detected from the remote URL
 

@@ -1,6 +1,13 @@
 ---
 name: codebase-explainer
-description: Produce a durable onboarding artifact for a codebase — writes `ONBOARDING.md` (or `docs/ONBOARDING.md` if `docs/` exists) covering a "read this first" minimum, system overview, dependency map (top-level deps + how each is actually used), startup flow (entry points → bootstrap → config), auth flow (or explicit "none detected"), and 5–15 important files — every claim backed by a `file:line` citation. Walks the repo via parallel Explore sub-agents so big projects don't blow context, calls out what makes THIS codebase non-obvious (not generic framework descriptions), refreshes an existing onboarding doc instead of rewriting from scratch, and renders a condensed summary inline. Built for revisiting a project after months away and for new teammates landing in an unfamiliar repo. Use this skill whenever the user says "explain this codebase", "explain the codebase", "onboard me", "give me a tour", "tour this repo", "what does this repo do", "where do I start", "I haven't looked at this in months", "codebase overview", "read this first", or invokes `/codebase-explainer` — even if they don't name the skill.
+description: >-
+    Produce a durable onboarding artifact for a codebase — writes ONBOARDING.md covering a
+    "read this first" minimum, system overview, dependency map, startup flow, auth flow, and
+    5-15 important files, every claim backed by file:line citations; refreshes an existing
+    onboarding doc instead of rewriting it. Use this skill whenever the user says "explain this
+    codebase", "explain the codebase", "onboard me", "give me a tour", "tour this repo", "what
+    does this repo do", "where do I start", "codebase overview", "read this first", "I haven't
+    looked at this in months", or "/codebase-explainer" — even if they don't name the skill.
 ---
 
 # Codebase Explainer

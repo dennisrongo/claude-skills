@@ -20,7 +20,7 @@ Do **not** auto-trigger when the user is just *discussing* skills, asking how sk
 Before scaffolding anything, figure out where the new skill belongs. The CWD usually tells you:
 
 | Signal | Target |
-|---|---|
+| --- | --- |
 | CWD is the `dennisrongo/claude-skills` repo (has `bin/claude-skills.js` + `skills/_template/`) | `skills/<name>/SKILL.md` in this library — and update README table |
 | CWD is some other project, user says "project skill" / "for this repo" | `./.claude/skills/<name>/SKILL.md` |
 | User says "global" / "every project" / "all my sessions" | `~/.claude/skills/<name>/SKILL.md` |
@@ -30,7 +30,8 @@ If you're in the library repo, prefer that destination — the user can install 
 
 ## Workflow
 
-1. **Confirm the trigger.** Restate in one sentence what the skill is for and the phrases that should trigger it. Bail and ask if either is fuzzy.
+1. **Confirm the trigger — and that a skill is the right tool.** Restate in one sentence what the skill is for and the phrases that should trigger it. Bail and ask if either is fuzzy. Don't write a skill for: a one-off solution; a project-specific convention (belongs in `CLAUDE.md`/`AGENTS.md`); or a mechanical constraint a linter, hook, or validation script could enforce (automate it — save prose for judgment calls).
+   - **Baseline the failure first (discipline skills).** If the skill exists to stop a behavior ("always X before Y", "never Z"), run the tempting scenario in a fresh sub-agent *without* the skill and capture what it does and the rationalization it uses, verbatim. That transcript is the spec: the skill addresses *those* rationalizations. No baseline failure → there's nothing to fix; don't write the skill.
 2. **Gather requirements** with `AskUserQuestion` (one question at a time, max 3–4 total). Pull from this menu — skip ones already answered:
    - **Trigger phrases** — what does the user actually say when they want this? Collect 3+ concrete phrases / commands.
    - **Inputs** — does Claude need a file? A URL? Just a free-form description?
@@ -40,9 +41,19 @@ If you're in the library repo, prefer that destination — the user can install 
 3. **Pick the name.** kebab-case, 2–4 words, matches what the user says. Use the leading-verb form when the skill *does* something (`write-a-skill`, `diagnose`, `handoff`); use the noun form when it *defines* something (`conventional-commits`, `model-inventory`).
 4. **Check for collisions.** `ls` the target skills directory. If a skill with the same name exists, stop and ask the user whether to overwrite, rename, or extend the existing one.
 5. **Scaffold from `_template/`** if it exists in the destination, otherwise from the template embedded below. Create the parent directory if missing.
-6. **Draft the SKILL.md** using the section structure in [Required structure](#required-structure). Write the description LAST — it depends on the body.
+6. **Draft the SKILL.md** using the section structure in [Required structure](#required-structure). Write the description LAST — it depends on the body. **Match the form to the failure** you're fixing:
+
+   | Baseline failure | Right form | Wrong form |
+   | --- | --- | --- |
+   | Knows the rule, skips it under pressure | Prohibition + rationalization table ("Excuse → Reality") + red-flags list | Soft guidance ("prefer…", "consider…") |
+   | Complies, but output has the wrong shape (bloated, buried verdict) | A recipe/contract stating what the output IS — its parts, in order | A list of "don't"s (agents negotiate with prohibitions under competing incentives) |
+   | Omits a required element from something it already produces | A REQUIRED slot in the template it fills in | A prose reminder near the template |
+   | Behavior should depend on a condition | A conditional keyed to an observable predicate ("if `X.md` exists, …") | An unconditional rule plus exemption clauses |
+
+   No nuance clauses ("don't X unless it matters" reopens the negotiation) — express a real exception as its own conditional on something observable.
 7. **Write the description carefully** — see [Writing the description](#writing-the-description). This is the single highest-leverage part of the file.
 8. **Self-review** against the [Review checklist](#review-checklist) before showing the user.
+   - **Prove it works (discipline and technique skills).** Re-run the baseline scenario from step 1 in a fresh sub-agent *with* the skill loaded. Complies → done. Finds a new rationalization → add its counter to the table and re-run. A skill you never watched change behavior is documentation, not a skill. Reference-only skills skip this; test retrieval instead (can a fresh agent find the right entry?).
 9. **If targeting the library repo, update `README.md`** — add a row to the skills table in alphabetical order with a one-paragraph "what it does" hook matching the existing voice. Verify the row by re-reading the file after the edit.
 10. **Report back**: skill path, the description verbatim, and the install command the user can run on other machines (`npx --yes github:dennisrongo/claude-skills install <name>` for library skills).
 
@@ -97,10 +108,12 @@ Skip sections that would be empty. Reorder only if there's a real reason. Keep t
 
 The description is the **only** field Claude reads when deciding whether to consult the skill. Optimize it for that decision:
 
-- **First sentence** — what the skill produces or does, named concretely (not "helps with X").
-- **Second sentence** — `Use this skill whenever the user says "<phrase 1>", "<phrase 2>", "<phrase 3>", … — even if they don't explicitly say "<skill name>".`
+- **First sentence** — what the skill produces or does, named concretely (not "helps with X"). **One sentence of *what*, never the *how*.** A description that summarizes the workflow ("runs X, then Y, then reviews Z") becomes a shortcut: the model follows the description and skips the body, so the two-stage step the body carefully specifies runs once. Name the outcome and the scope; leave every process step to the body.
+  - ❌ `Executes plans — dispatches a sub-agent per task with a code review between tasks.` (a model reading this does one review and never opens the skill)
+  - ✅ `Executes a written implementation plan task-by-task with fresh sub-agents.` (outcome + scope; the review protocol lives in the body)
+- **Second sentence** — `Use this skill whenever the user says "<phrase 1>", "<phrase 2>", "<phrase 3>", … — even if they don't explicitly say "<skill name>".` Include *symptoms* as well as commands ("flaky", "hanging", "is this a breaking change") — the model searches by problem, not by skill name.
 - **Third sentence (optional)** — explicit non-triggers if there's a near-neighbor skill it could be confused with.
-- **Length** — max 1024 chars. Use the budget for trigger phrases, not adjectives.
+- **Length** — max 1024 chars. Use the budget for trigger phrases, not adjectives or steps.
 - **Voice** — third person, present tense.
 
 **Good:**
@@ -153,7 +166,9 @@ If you do add either, mention them by relative path from the `SKILL.md` body so 
 Before showing the draft to the user:
 
 - [ ] `name:` matches the directory name exactly
-- [ ] `description:` starts with what the skill does, then "Use this skill whenever the user says …"
+- [ ] `description:` starts with what the skill does (outcome + scope, **no workflow steps**), then "Use this skill whenever the user says …"
+- [ ] Discipline skill: baseline failure observed without the skill; compliance observed with it; rationalization table + red-flags list present
+- [ ] Guidance form matches the failure type (prohibition / recipe / required slot / conditional)
 - [ ] Description includes ≥ 3 concrete trigger phrases / commands
 - [ ] Description ends with "— even if they don't explicitly say …" escape hatch
 - [ ] `## When to use this skill` lists the same triggers as bullets (so the body reinforces the description)
@@ -174,6 +189,7 @@ Before showing the draft to the user:
 **User:** "/write-a-skill — I want one that runs eslint --fix and stages the changes whenever I say 'lint this'"
 
 **Claude:**
+
 1. Confirms the trigger phrases ("lint this", "fix lint", "/lint-and-stage") via `AskUserQuestion`.
 2. Names it `lint-and-stage`, scaffolds `skills/lint-and-stage/SKILL.md` from `_template/`.
 3. Fills in the workflow (run `eslint --fix`, run `git add -u`, summarize changed files).
@@ -183,9 +199,10 @@ Before showing the draft to the user:
 
 ### Example 2: "One like this" from a pasted URL
 
-**User:** "Create a skill like https://github.com/mattpocock/skills/blob/main/skills/productivity/write-a-skill/SKILL.md but for our repo"
+**User:** "Create a skill like <https://github.com/mattpocock/skills/blob/main/skills/productivity/write-a-skill/SKILL.md> but for our repo"
 
 **Claude:**
+
 1. Fetches the URL, reads the source skill.
 2. Identifies what to keep (process, description requirements, checklist) and what to adapt (directory structure, README updates, this repo's voice).
 3. Scaffolds the adapted version, gets user sign-off, writes the file.
@@ -195,6 +212,7 @@ Before showing the draft to the user:
 **User:** "Add a skill just for this repo that reminds me to run `pnpm changeset` before any feat/fix commit"
 
 **Claude:**
+
 1. Detects CWD is not the library repo → targets `./.claude/skills/changeset-reminder/SKILL.md`.
 2. Creates `.claude/skills/` if missing.
 3. Drafts a tiny skill keyed on `git commit` / "commit" triggers that checks for a changeset file and warns if missing.
@@ -203,6 +221,9 @@ Before showing the draft to the user:
 ## Anti-patterns
 
 - ❌ Writing a vague description like "Helps with commits." — Claude won't trigger it. Always include explicit trigger phrases.
+- ❌ Summarizing the workflow in the description — the model follows the summary and never reads the body.
+- ❌ Shipping a discipline skill without watching an agent fail without it and comply with it — you don't know what it teaches.
+- ❌ Fixing a wrong-shaped output with a list of "don't"s — state what the output IS instead.
 - ❌ Inventing trigger phrases the user didn't confirm — ask, don't guess.
 - ❌ Padding `SKILL.md` with motivational prose. Every line should change Claude's behavior; if removing it changes nothing, cut it.
 - ❌ Delegating judgment to the executing model ("use discretion", "be careful", "apply good judgment") — name the check, the threshold, and the fallback instead.

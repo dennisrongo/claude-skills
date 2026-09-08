@@ -28,6 +28,34 @@ test('parseFrontmatter extracts name and description', () => {
   assert.match(fm.description, /^A multi-line description that wraps/);
 });
 
+test('parseFrontmatter strips YAML block-scalar indicators from folded descriptions', () => {
+  const input = [
+    '---',
+    'name: folded',
+    'description: >-',
+    '    First line of a folded description,',
+    '    second line continues it.',
+    '---',
+  ].join('\n');
+
+  const fm = parseFrontmatter(input);
+  assert.equal(fm.name, 'folded');
+  assert.equal(
+    fm.description,
+    'First line of a folded description, second line continues it.'
+  );
+});
+
+test('no shipped skill description starts with a YAML block-scalar indicator', () => {
+  for (const skill of listLibrarySkills()) {
+    assert.doesNotMatch(
+      skill.description,
+      /^[>|]/,
+      `${skill.slug} description leaks a block-scalar indicator: ${skill.description.slice(0, 20)}`
+    );
+  }
+});
+
 test('parseFrontmatter returns empty object when no frontmatter', () => {
   assert.deepEqual(parseFrontmatter('# just a heading'), {});
 });
@@ -62,6 +90,17 @@ test('every shipped skill has a non-empty name and description', () => {
     assert.ok(
       skill.description && skill.description !== '(no description)',
       `${skill.slug} has missing description`
+    );
+  }
+});
+
+test('every shipped skill has a row in the README skills table', () => {
+  const readme = fs.readFileSync(path.join(__dirname, '..', 'README.md'), 'utf8');
+  for (const skill of listLibrarySkills()) {
+    const row = `| [\`${skill.slug}\`](./skills/${skill.slug}/SKILL.md) |`;
+    assert.ok(
+      readme.includes(row),
+      `${skill.slug} has no README row — add one to the skills table (see CLAUDE.md rule 7)`
     );
   }
 });

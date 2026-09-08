@@ -29,7 +29,9 @@ Do **not** use when the user is present and wants to approve the plan — that's
 
 ### Phase 0 — Acquire the task
 
-Work item id given → pull it with the `azure-devops` or `github` skill if installed (description, comments, AND embedded screenshots — view them; acceptance criteria hide in images and comments). Inline description given → use it directly. Exit gate: restate "This task needs ___ so that ___" in one line. Can't fill the second blank → derive it from the artifacts; still can't → hard stop.
+Work item id given → pull it with the `azure-devops` or `github` skill if installed (description, comments, AND embedded screenshots — view them; acceptance criteria hide in images and comments). Inline description given → use it directly. Exit gate: restate "This task needs `___` so that `___`" in one line. Can't fill the second blank → derive it from the artifacts; still can't → hard stop.
+
+**Branch posture.** Never implement on `main`/`master`/the default branch: if that's where you are, create a branch named from the work item (following the repo's existing branch convention from `git branch -a`) and log it as an assumption. **Scope classification** is logged too: a feasibility *spike* keeps nothing (built code is labeled throwaway in the report); an *architectural* task — new subsystem, restructured boundaries, interfaces others depend on — is a hard stop, because every assumption it forces is expensive to reverse — the report names `design-brief` (if installed) as the route back: an approved brief in `.claude/design-briefs/` turns the task into a bounded one this skill can run.
 
 ### Phase 1 — Plan (self-gated, not user-gated)
 
@@ -37,9 +39,9 @@ Inspect the code the task touches (use `task-executor`'s inspection discipline; 
 
 ### Phase 2 — Execute incrementally
 
-One increment at a time; observed verification after each before the next. Before starting each increment, restate the Phase 0 one-liner — if the increment doesn't serve it, the plan has drifted: re-plan, don't push through. A mid-course finding that contradicts the plan → re-plan (log the change and reason). Track assumptions as they accumulate — an assumption load-bearing for 3+ increments gets re-verified against the code, not carried on faith, and an assumption that rests on *another* assumption multiplies both blast radii: re-verify the base one before stacking a third on top.
+One increment at a time; observed verification after each before the next. Where a test seam exists, an increment that adds or changes behavior **opens with its failing test** (run it — red for the right reason, quoted) and closes with the minimum code that turns it green; Phase 3 then covers what the increments didn't. Before starting each increment, restate the Phase 0 one-liner — if the increment doesn't serve it, the plan has drifted: re-plan, don't push through. A mid-course finding that contradicts the plan → re-plan (log the change and reason). Track assumptions as they accumulate — an assumption load-bearing for 3+ increments gets re-verified against the code, not carried on faith, and an assumption that rests on *another* assumption multiplies both blast radii: re-verify the base one before stacking a third on top.
 
-**Command-failure protocol (autonomous variant).** A command fails → read the full error output, change exactly one thing it names, retry once. A second failure on the same step means the approach is wrong, not the luck: re-plan the increment around it, or hard stop if there's no route — never loop retries hoping for a different result, and never continue as if it passed. With nobody watching, silent retry-thrash burns the run and confabulated success poisons the report; both are worse than an honest stop.
+**Command-failure protocol (autonomous variant).** A command fails → read the full error output, change exactly one thing it names, retry once. A second failure on the same step means the approach is wrong, not the luck: re-plan the increment around it, or hard stop if there's no route — never loop retries hoping for a different result, and never continue as if it passed. **Three failed fix attempts on the same behavior across increments is a hard stop**, not a fourth attempt: each fix surfacing new coupling somewhere else means the pattern is wrong, and an unattended run must not "refactor its way out". With nobody watching, silent retry-thrash burns the run and confabulated success poisons the report; both are worse than an honest stop.
 
 ### Phase 3 — Test
 
@@ -51,7 +53,7 @@ Run the `code-review` skill if installed (else a focused diff review). Autonomou
 
 ### Phase 5 — Report (the deliverable)
 
-In order: **Outcome** (one sentence — done / done-with-caveats / hard-stopped where). "Done" is earned only when every phase exit was observed; a single `not run`, an unexplained test failure, or a surviving blocker makes it "done-with-caveats" *with the caveat named in the same sentence* — never buried three sections down. **What changed** (files + why). **Evidence** (quoted test/build/run output per the doctrine tags: verified/inferred/assumed). **Review outcome** (findings, fixes applied, anything remaining). **ASSUMPTIONS table** (question → choice → why → blast radius). **Found along the way.** **Your move** (the commit/PR steps deliberately left to the human, ready to paste).
+In order: **Outcome** (one sentence — done / done-with-caveats / hard-stopped where). "Done" is earned only when every phase exit was observed **and** the acceptance criteria from Phase 0 were re-read line by line with observed evidence pointed at each — tests passing is not requirements met; a single `not run`, an unexplained test failure, or a surviving blocker makes it "done-with-caveats" *with the caveat named in the same sentence* — never buried three sections down. **What changed** (files + why). **Evidence** (quoted test/build/run output per the doctrine tags: verified/inferred/assumed). **Review outcome** (findings, fixes applied, anything remaining). **ASSUMPTIONS table** (question → choice → why → blast radius). **Found along the way.** **Your move** (the commit/PR steps deliberately left to the human, ready to paste).
 
 ## Sub-agent model routing
 

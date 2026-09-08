@@ -101,6 +101,8 @@ Exotic hypotheses (framework bug, compiler bug, race condition) are almost alway
 
 When the behavior makes no sense, you are looking at the wrong code, the wrong process, or the wrong environment — not at an exotic bug.
 
+**Compare against a working sibling.** Before theorising, find the nearest thing that _works_ — a sibling endpoint, the same pattern in another module, the reference implementation of the library call — and list every difference between it and the broken path, however small. Read the working example completely, don't skim it; the difference you dismissed as "can't matter" is the usual culprit. Each difference is a ready-made hypothesis with a built-in falsification (make the broken path match → does the bug vanish?).
+
 **The user's diagnosis is hypothesis #1, not the conclusion.** If the user says "it's probably the cache layer" or "should be a quick fix", rank it, state its falsifiable prediction, and test it like the others. Never skip falsification because the user sounded sure — confident framing is not evidence.
 
 ### Decision gate: inline vs. hypothesis council
@@ -110,7 +112,7 @@ When the behavior makes no sense, you are looking at the wrong code, the wrong p
 
 ### Hypothesis council (parallel + adversarial)
 
-1. **Seed.** Jot 3–5 candidate hypotheses as one-liners. These are *seeds*, not analyses.
+1. **Seed.** Jot 3–5 candidate hypotheses as one-liners. These are _seeds_, not analyses.
 2. **Spawn defenders in parallel.** Send a **single message** with N `Agent` calls (one per seed) using `subagent_type=Explore`. Each defender gets:
    - The repro details and observed failure mode (verbatim).
    - **One** hypothesis to defend.
@@ -120,7 +122,7 @@ When the behavior makes no sense, you are looking at the wrong code, the wrong p
    - Whether the defender found real evidence or hand-waved.
 4. **Rank with the survivors.** Drop hypotheses whose defender couldn't find supporting evidence. Demote ones whose prediction is weak or untestable. Promote ones with clean `file:line` evidence + sharp predictions.
 
-The point isn't "vote by sub-agent." It's that forcing each angle to be developed *independently* against the real code prevents the chain-of-thought from anchoring on the first plausible idea.
+The point isn't "vote by sub-agent." It's that forcing each angle to be developed _independently_ against the real code prevents the chain-of-thought from anchoring on the first plausible idea.
 
 ### Then: show the ranked list to the user
 
@@ -140,7 +142,9 @@ Tool preference:
 
 **Tag every debug log** with a unique prefix, e.g. `[DEBUG-a4f2]`. Cleanup at the end becomes a single grep. Untagged logs survive; tagged logs die.
 
-**Library-API bugs — check current docs before guessing.** If the hypothesis points at a third-party library's behaviour (a framework method, an ORM call, an SDK), look up the library's *current* docs before instrumenting around assumed behaviour. Use `context7` (or any docs-MCP server available in the environment): `context7__resolve-library-id` → `context7__query-docs` for the specific symbol. Training-data API knowledge can be a version behind; the bug may be a known issue or already-fixed-upstream. Skip for refactoring own code, general programming concepts, or library behaviour you've already confirmed in this session.
+**Library-API bugs — check current docs before guessing.** If the hypothesis points at a third-party library's behaviour (a framework method, an ORM call, an SDK), look up the library's _current_ docs before instrumenting around assumed behaviour. Use `context7` (or any docs-MCP server available in the environment): `context7__resolve-library-id` → `context7__query-docs` for the specific symbol. Training-data API knowledge can be a version behind; the bug may be a known issue or already-fixed-upstream. Skip for refactoring own code, general programming concepts, or library behaviour you've already confirmed in this session.
+
+**Multi-component systems — bisect by boundary first.** When the path crosses layers (CI → build → signing; client → API → service → DB; workflow → env → script), don't hypothesise about the logic inside any one layer until you know _which layer_ breaks. Log what enters and exits each boundary (payload shape, env/config values as SET/UNSET, state) in one run, then read the trail to find the first boundary where reality diverges from expectation. That layer gets the hypotheses; the others are exonerated by evidence, not by assumption.
 
 **Perf branch.** For performance regressions, logs are usually wrong. Instead: establish a baseline measurement (timing harness, `performance.now()`, profiler, query plan), then bisect. Measure first, fix second.
 
@@ -152,7 +156,9 @@ Tool preference:
 
 **The accepted hypothesis must explain EVERY observed symptom.** A hypothesis that explains 2 of 3 symptoms is a different bug or an incomplete cause. Before writing the fix, walk the symptom list from Phase 2 and check each one off against the hypothesis — an unexplained symptom means back to Phase 3, not "probably unrelated".
 
-**Minimal comments.** Default to no comments in the fix or the regression test. Add one only when the *why* is non-obvious — a workaround for a specific upstream bug (with a link), a subtle invariant the code relies on, a domain rule that isn't visible from the names. Never write block headers, never restate *what* the next line does, never leave `// TODO` without an issue link. One short line max — no multi-line comment blocks. Names carry the *what*; comments earn their place only when they carry *why*.
+**One fix, scoped to the cause.** Address the root cause identified — one change, no bundled refactoring, no "while I'm here" improvements (those go in the post-mortem as follow-ups). If the fix doesn't hold: count. Under three attempts → back to Phase 3 with the new evidence, never a fourth fix stacked on the first three. **Three failed fixes is not a failed hypothesis — it's a wrong architecture.** Each fix revealing new coupling in a different place, or needing a "massive refactor" to land, means the pattern itself is unsound: stop, say so, and raise it with the user (or hand off to `improve-codebase-architecture`) before attempting fix #4.
+
+**Minimal comments.** Default to no comments in the fix or the regression test. Add one only when the _why_ is non-obvious — a workaround for a specific upstream bug (with a link), a subtle invariant the code relies on, a domain rule that isn't visible from the names. Never write block headers, never restate _what_ the next line does, never leave `// TODO` without an issue link. One short line max — no multi-line comment blocks. Names carry the _what_; comments earn their place only when they carry _why_.
 
 Write the regression test **before the fix** — but only if there is a **correct seam** for it.
 
@@ -178,7 +184,7 @@ Required before declaring done:
 - [ ] Throwaway prototypes deleted (or moved to a clearly-marked debug location)
 - [ ] The hypothesis that turned out correct is stated in the commit / PR message — so the next debugger learns
 
-**Then ask: what would have prevented this bug?** If the answer involves architectural change (no good test seam, tangled callers, hidden coupling), surface it as a follow-up recommendation with specifics. Make the recommendation **after** the fix is in, not before — you have more information now than when you started.
+**Then ask: what would have prevented this bug?** If the answer involves architectural change (no good test seam, tangled callers, hidden coupling), surface it as a follow-up recommendation with specifics. Two cheap hardening moves worth naming when they apply: **defense in depth** — once the root cause is known, add validation at the boundary where the bad value _entered_, not only where it crashed, so the next bad input fails loudly and early; and **condition-based waiting** — if the bug involved timing, replace any arbitrary `sleep`/timeout with polling for the actual condition (event fired, file exists, state reached), which removes the flake class rather than widening the window. Make the recommendation **after** the fix is in, not before — you have more information now than when you started.
 
 ## Anti-patterns
 
@@ -198,4 +204,5 @@ Required before declaring done:
 
 ## Notes
 
-- Adapted from Matt Pocock's `diagnose` skill — same six-phase discipline (reproduce → minimise → hypothesise → instrument → fix → regression-test), with the architectural-handoff step generalised since this library doesn't ship a paired `improve-codebase-architecture` skill.
+- **Several independent failures at once** (3+ test files red for unrelated reasons, multiple subsystems broken separately): don't serialise. Dispatch one sub-agent per independent domain, each with its own scoped brief (the exact failing tests and error text, "do not change code outside X", "return root cause + what changed"), in a single parallel message. Only when failures are truly independent — if fixing one might fix another, investigate together first. When they return: check the diffs don't overlap, run the full suite once, spot-check for systematic errors.
+- Adapted from Matt Pocock's `diagnose` skill — same six-phase discipline (reproduce → minimise → hypothesise → instrument → fix → regression-test). Architectural findings hand off to `improve-codebase-architecture`.
