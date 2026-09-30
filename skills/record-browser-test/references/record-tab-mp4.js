@@ -2,14 +2,15 @@
   const CLIP = 96;
   const TRAIL = 2;
   const RESULTS_SHOWN = 10;
-  const GREEN = '#34d399';
-  const RED = '#fb7185';
-  const AMBER = '#fbbf24';
-  const INDIGO = '#a5b4fc';
-  const SLATE = '#64748b';
+  const GREEN = '#34e5a0';
+  const RED = '#ff4d7d';
+  const AMBER = '#ffb547';
+  const CYAN = '#5ee7ff';
+  const VIOLET = '#9b8cff';
+  const SLATE = '#6b7694';
   const FONT = '-apple-system,"Segoe UI Variable Text","Segoe UI",Roboto,system-ui,sans-serif';
   const MONO = 'ui-monospace,"SF Mono","Cascadia Code",Consolas,monospace';
-  const GLASS = 'background:rgba(15,18,30,.9);backdrop-filter:blur(16px) saturate(150%);-webkit-backdrop-filter:blur(16px) saturate(150%);border:1px solid rgba(255,255,255,.1);border-left:3px solid ' + INDIGO + ';border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.4);color:#f3f5fb;font-family:' + FONT + ';';
+  const GLASS = 'overflow:hidden;background:linear-gradient(180deg,rgba(20,26,44,.94),rgba(7,10,18,.94));backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);border:1px solid rgba(120,170,255,.22);border-radius:16px;box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 12px 36px rgba(0,0,0,.5),0 0 28px rgba(94,231,255,.14);color:#eef1fa;font-family:' + FONT + ';';
 
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const clip = s => { const t = String(s ?? ''); return t.length > CLIP ? t.slice(0, CLIP - 1) + '…' : t; };
@@ -29,33 +30,36 @@
     return keys.length === Object.keys(b).length && keys.every(k => k in b && same(a[k], b[k]));
   };
   const make = (css, text = '', tag = 'div') => { const n = document.createElement(tag); n.style.cssText = css; if (text) n.textContent = text; return n; };
-  const chip = (text, color) => make('font:700 11px ' + FONT + ';padding:1px 7px;border-radius:99px;color:' + color + ';background:' + color + '24', text);
+  const chip = (text, color) => make('font:700 11px ' + MONO + ';padding:1px 8px;border-radius:99px;color:' + color + ';background:' + color + '1c;border:1px solid ' + color + '55;box-shadow:0 0 10px ' + color + '33', text);
   const trailLine = (glyph, color, text) => {
-    const row = make('display:flex;gap:7px;padding:1px 0');
-    row.append(make('flex:none;width:12px;font-weight:800;color:' + color, glyph, 'span'), make('overflow-wrap:anywhere', text, 'span'));
+    const row = make('display:flex;gap:8px;padding:1px 0');
+    row.append(make('flex:none;width:12px;font-weight:800;color:' + color + ';text-shadow:0 0 8px ' + color, glyph, 'span'), make('overflow-wrap:anywhere', text, 'span'));
     return row;
   };
 
-  const panel = make('position:fixed;top:12px;left:12px;z-index:2147483647;display:none;box-sizing:border-box;width:min(360px,34vw);padding:10px 12px 11px;pointer-events:none;' + GLASS);
-  const header = make('display:flex;align-items:center;gap:7px;flex-wrap:wrap');
-  const dot = make('flex:none;width:8px;height:8px;border-radius:50%;background:' + AMBER);
-  const status = make('font:800 10px ' + FONT + ';letter-spacing:.1em;color:' + AMBER, 'START');
-  const clock = make('margin-left:2px;font:700 15px ' + MONO + ';font-variant-numeric:tabular-nums;letter-spacing:-.01em', '0:00.0');
+  const panel = make('position:fixed;top:12px;left:12px;z-index:2147483647;display:none;box-sizing:border-box;width:min(370px,34vw);padding:12px 14px 13px;pointer-events:none;' + GLASS);
+  const accent = make('position:absolute;left:0;top:0;right:0;height:2px;background:linear-gradient(90deg,' + CYAN + ',' + VIOLET + ');box-shadow:0 0 12px ' + CYAN);
+  const sweep = make('position:absolute;top:0;bottom:0;left:0;width:40%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.05),transparent);pointer-events:none');
+  const header = make('position:relative;display:flex;align-items:center;gap:8px;flex-wrap:wrap');
+  const dot = make('flex:none;width:8px;height:8px;border-radius:50%;background:' + AMBER + ';box-shadow:0 0 10px ' + AMBER);
+  const status = make('font:700 10px ' + MONO + ';letter-spacing:.18em;color:' + AMBER, 'START');
+  const clock = make('margin-left:2px;font:700 16px ' + MONO + ';font-variant-numeric:tabular-nums;letter-spacing:-.01em;color:#fff;text-shadow:0 0 12px ' + CYAN + '88', '0:00.0');
   const counts = make('display:flex;gap:5px;margin-left:auto');
-  const pace = make('flex:none;font:700 9.5px ' + FONT + ';letter-spacing:.07em;padding:2px 7px;border-radius:99px;color:#0f121e;background:#cbd5e1', 'REAL TIME');
+  const pace = make('flex:none;font:700 9.5px ' + MONO + ';letter-spacing:.12em;padding:2px 8px;border-radius:99px;color:#cbd5e1;border:1px solid #cbd5e155', 'REAL TIME');
   header.append(dot, status, clock, counts, pace);
-  const suite = make('margin-top:7px;font-size:11.5px;font-weight:600;color:#b8c0d4;overflow-wrap:anywhere');
-  const stamp = make('margin-top:1px;font:400 10px ' + MONO + ';color:#7f8aa3;overflow-wrap:anywhere');
-  const rule = make('height:1px;margin:8px 0;background:rgba(255,255,255,.08)');
-  const stepRow = make('display:flex;align-items:baseline;gap:8px');
-  const stepChip = make('flex:none;font:800 9.5px ' + FONT + ';letter-spacing:.08em;color:#0f121e;background:' + INDIGO + ';border-radius:6px;padding:2px 6px', 'STEP');
-  const stepTitle = make('min-width:0;font-size:15px;line-height:1.3;font-weight:620;letter-spacing:-.005em;overflow-wrap:anywhere');
+  const suite = make('position:relative;margin-top:8px;font-size:12px;font-weight:650;color:#c3cbe0;overflow-wrap:anywhere');
+  const stamp = make('position:relative;margin-top:1px;font:400 10px ' + MONO + ';color:#7f8bab;overflow-wrap:anywhere');
+  const rule = make('position:relative;height:1px;margin:9px 0;background:linear-gradient(90deg,rgba(94,231,255,.35),rgba(155,140,255,.15),transparent)');
+  const stepRow = make('position:relative;display:flex;align-items:baseline;gap:9px');
+  const stepChip = make('flex:none;font:700 9.5px ' + MONO + ';letter-spacing:.12em;color:#05070c;background:linear-gradient(135deg,' + CYAN + ',' + VIOLET + ');border-radius:6px;padding:2px 7px;box-shadow:0 0 12px ' + CYAN + '55', 'STEP');
+  const stepTitle = make('min-width:0;font-size:15px;line-height:1.3;font-weight:650;letter-spacing:-.01em;overflow-wrap:anywhere');
   stepRow.append(stepChip, stepTitle);
-  const doing = make('display:none;margin-top:4px;font-size:12.5px;line-height:1.4;color:#fcd34d;overflow-wrap:anywhere');
-  const saw = make('display:none;margin-top:2px;font-size:12px;line-height:1.4;color:#c7cee0;overflow-wrap:anywhere');
-  const checkBox = make('display:none;margin-top:8px;padding:6px 9px;border-radius:9px;font-size:12.5px;line-height:1.4;font-weight:600;overflow-wrap:anywhere;border:1px solid transparent');
-  const trail = make('display:none;margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.08);font-size:11.5px;line-height:1.5;color:#93a0ba');
-  panel.append(header, suite, stamp, rule, stepRow, doing, saw, checkBox, trail);
+  const doing = make('position:relative;display:none;margin-top:5px;font-size:12.5px;line-height:1.4;color:#8ff0ff;overflow-wrap:anywhere');
+  const saw = make('position:relative;display:none;margin-top:2px;font-size:12px;line-height:1.4;color:#c7cee0;overflow-wrap:anywhere');
+  const checkBox = make('position:relative;display:none;margin-top:9px;padding:7px 10px;border-radius:10px;font-size:12.5px;line-height:1.4;font-weight:600;overflow-wrap:anywhere;border:1px solid transparent');
+  const trail = make('position:relative;display:none;margin-top:9px;padding-top:8px;border-top:1px solid rgba(120,170,255,.14);font-size:11.5px;line-height:1.5;color:#98a4c0');
+  panel.append(accent, sweep, header, suite, stamp, rule, stepRow, doing, saw, checkBox, trail);
+  sweep.animate([{ transform: 'translateX(-120%)' }, { transform: 'translateX(320%)' }], { duration: 4200, iterations: Infinity, easing: 'ease-in-out' });
 
   const button = document.createElement('button');
   button.id = '__rec_start';
@@ -78,7 +82,8 @@
     const t = elapsed();
     clock.textContent = Math.floor(t / 60) + ':' + (t % 60).toFixed(1).padStart(4, '0');
     pace.textContent = state.dwell ? 'PACED ' + state.dwell + ' ms' : 'REAL TIME';
-    pace.style.background = state.dwell ? AMBER : '#cbd5e1';
+    pace.style.color = state.dwell ? AMBER : '#cbd5e1';
+    pace.style.borderColor = (state.dwell ? AMBER : '#cbd5e1') + '55';
     const chips = [];
     if (state.pass) chips.push(chip('✓ ' + state.pass, GREEN));
     if (state.fail) chips.push(chip('✕ ' + state.fail, RED));
@@ -88,21 +93,27 @@
     status.textContent = text;
     status.style.color = color;
     dot.style.background = color;
+    dot.style.boxShadow = '0 0 10px ' + color;
     if (pulse) { pulse.cancel(); pulse = null; }
-    if (pulsing) pulse = dot.animate([{ opacity: 1 }, { opacity: 0.3 }, { opacity: 1 }], { duration: 1200, iterations: Infinity });
+    if (pulsing) pulse = dot.animate([{ opacity: 1, transform: 'scale(1)' }, { opacity: 0.3, transform: 'scale(.7)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 1200, iterations: Infinity });
   };
   const setCheck = (tag, text, color) => {
     if (!text) { checkBox.style.display = 'none'; return; }
     checkBox.style.display = 'block';
     checkBox.style.color = color;
-    checkBox.style.background = color + '1f';
+    checkBox.style.background = color + '17';
     checkBox.style.borderColor = color + '55';
-    checkBox.replaceChildren(make('display:inline-block;margin-right:8px;padding:1px 7px;border-radius:99px;font:800 9.5px ' + FONT + ';letter-spacing:.07em;color:#0f121e;background:' + color, tag, 'span'), document.createTextNode(text));
+    checkBox.style.boxShadow = '0 0 16px ' + color + '26';
+    checkBox.replaceChildren(make('display:inline-block;margin-right:8px;padding:1px 8px;border-radius:99px;font:700 9.5px ' + MONO + ';letter-spacing:.14em;color:#05070c;background:' + color + ';box-shadow:0 0 10px ' + color + '88', tag, 'span'), document.createTextNode(text));
+    checkBox.animate([{ opacity: 0, transform: 'scale(.96)' }, { opacity: 1, transform: 'none' }], { duration: 180, easing: 'ease-out' });
   };
   const tint = color => {
-    panel.style.borderColor = color + '55';
-    panel.style.borderLeftColor = color;
-    panel.style.boxShadow = '0 8px 28px rgba(0,0,0,.4), 0 0 24px ' + color + '2e';
+    panel.style.borderColor = color + '66';
+    accent.style.background = color;
+    accent.style.boxShadow = '0 0 14px ' + color;
+    const glow = alpha => 'inset 0 1px 0 rgba(255,255,255,.06), 0 12px 36px rgba(0,0,0,.5), 0 0 32px ' + color + alpha;
+    panel.style.boxShadow = glow('40');
+    panel.animate([{ boxShadow: glow('b3') }, { boxShadow: glow('40') }], { duration: 900, easing: 'ease-out' });
   };
   const renderTrail = rows => {
     trail.replaceChildren(...rows);

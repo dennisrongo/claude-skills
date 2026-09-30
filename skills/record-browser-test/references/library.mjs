@@ -84,28 +84,37 @@ const serveFile = (req, res, file, type, attachmentName) => {
 
 const LIBRARY_STYLE = `
 .top { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; justify-content: space-between; margin-bottom: 6px; }
-.top > div { flex: 1 1 320px; min-width: 0; } .top .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.search { position: relative; flex: 0 0 auto; } .search .ico { position: absolute; left: 12px; top: 10px; color: var(--muted); pointer-events: none; }
-.search input { height: 38px; width: min(320px, 100%); padding: 0 12px 0 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 500 14px var(--font); }
-.filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 20px; }
-.fchip { height: 34px; padding: 0 14px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font: 600 13px var(--font); cursor: pointer; }
-.fchip[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
-.card { overflow: hidden; display: flex; flex-direction: column; transition: transform .15s ease, box-shadow .15s ease, opacity .25s ease; }
-.card:hover { transform: translateY(-2px); } .card.gone { opacity: 0; transform: scale(.97); } .card[hidden] { display: none; }
-.thumbwrap { position: relative; display: block; aspect-ratio: 16 / 9; background: #0b0d14; overflow: hidden; }
-.thumb { width: 100%; height: 100%; object-fit: cover; display: block; }
-.thumbwrap .badge { position: absolute; right: 10px; top: 10px; background: color-mix(in srgb, var(--surface) 85%, transparent); backdrop-filter: blur(6px); }
+.top > div { flex: 1 1 320px; min-width: 0; } .top .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 12.5px; }
+.top .hud { margin-bottom: 10px; } .top .live i { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+.top h1 { font-size: clamp(32px, 5vw, 46px); line-height: 1; background: linear-gradient(90deg, var(--ink), color-mix(in srgb, var(--ink) 40%, var(--accent)) 60%, var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.search { position: relative; flex: 0 0 auto; } .search .ico { position: absolute; left: 13px; top: 11px; color: var(--muted); pointer-events: none; }
+.search input { height: 42px; width: min(320px, 100%); padding: 0 14px 0 40px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 500 14px var(--font); transition: border-color .15s ease, box-shadow .2s ease; }
+.search input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), 0 0 24px color-mix(in srgb, var(--accent) 25%, transparent); }
+#t-pass { color: var(--pass); } #t-fail { color: var(--fail); } #t-disk { color: var(--accent); }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 22px; }
+.fchip { height: 36px; padding: 0 16px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font: 600 13px var(--font); cursor: pointer; transition: color .15s ease, border-color .15s ease, box-shadow .2s ease, background .15s ease; }
+.fchip:hover { color: var(--ink); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.fchip[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 25%, transparent); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+.card { overflow: hidden; display: flex; flex-direction: column; animation: rs-rise .6s cubic-bezier(.2,.7,.2,1) backwards; transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
+.card:hover { transform: translateY(-4px); border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent), 0 24px 70px color-mix(in srgb, var(--accent) 16%, transparent); }
+.card.gone { animation: rs-out .26s ease forwards; } .card[hidden] { display: none; }
+.thumbwrap { position: relative; display: block; aspect-ratio: 16 / 9; background: radial-gradient(circle at 50% 40%, #131c33, #04060a); overflow: hidden; }
+.thumbwrap::after { content: ""; position: absolute; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, rgba(94,231,255,.5), transparent); animation: rs-scan 3.5s linear infinite; pointer-events: none; }
+.thumb { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .4s ease; } .card:hover .thumb { transform: scale(1.04); }
+.thumbwrap .badge { position: absolute; right: 10px; top: 10px; background: color-mix(in srgb, var(--bg) 82%, transparent); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 .dur { position: absolute; right: 10px; bottom: 10px; font: 600 12px var(--mono); color: #fff; background: rgba(0,0,0,.62); padding: 2px 8px; border-radius: 7px; }
-.play { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; opacity: 0; background: rgba(0,0,0,.28); transition: opacity .15s ease; } .thumbwrap:hover .play { opacity: 1; }
-.body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
-.body h2 { margin: 0; font-size: 16px; line-height: 1.3; letter-spacing: -.01em; overflow-wrap: anywhere; } .body h2 a { color: var(--ink); }
-.meta { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 13px; color: var(--muted); }
+.play { position: absolute; inset: 0; display: grid; place-items: center; color: #5ee7ff; opacity: 0; background: rgba(4,6,10,.4); transition: opacity .2s ease; } .thumbwrap:hover .play { opacity: 1; }
+.play svg { width: 60px; height: 60px; padding: 16px; border-radius: 50%; border: 1px solid rgba(94,231,255,.5); background: rgba(94,231,255,.12); box-shadow: 0 0 40px rgba(94,231,255,.35); }
+.body { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.body h2 { margin: 0; font-size: 16.5px; line-height: 1.3; letter-spacing: -.01em; overflow-wrap: anywhere; } .body h2 a { color: var(--ink); }
+.meta { display: flex; flex-wrap: wrap; gap: 2px 12px; font: 12.5px var(--mono); color: var(--muted); }
 .sub { margin: 0; font-size: 13px; color: var(--muted); }
 .acts { display: flex; gap: 8px; margin-top: auto; padding-top: 6px; } .acts .primary { flex: 1; justify-content: center; }
-.emptybox { grid-column: 1 / -1; padding: 44px 20px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: var(--radius); }
-dialog { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); color: var(--ink); padding: 24px; width: min(440px, calc(100vw - 32px)); box-shadow: 0 30px 80px rgba(0,0,0,.45); }
-dialog::backdrop { background: rgba(6,8,14,.62); backdrop-filter: blur(3px); }
+.emptybox { grid-column: 1 / -1; padding: 44px 20px; text-align: center; color: var(--muted); border: 1px dashed color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: var(--radius); background: var(--surface); }
+dialog { border: 1px solid color-mix(in srgb, var(--fail) 35%, var(--line)); border-radius: 20px; background: var(--surface); color: var(--ink); padding: 24px; width: min(440px, calc(100vw - 32px)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--fail) 10%, transparent), 0 30px 80px rgba(0,0,0,.5), 0 0 60px color-mix(in srgb, var(--fail) 12%, transparent); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+dialog[open] { animation: rs-rise .25s ease backwards; }
+dialog::backdrop { background: rgba(4,6,10,.66); backdrop-filter: blur(4px); }
 dialog h3 { margin: 0 0 6px; font-size: 18px; overflow-wrap: anywhere; } dialog p { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
 dialog .row { display: flex; justify-content: flex-end; gap: 10px; } dialog .err { color: var(--fail); margin: -6px 0 14px; font-size: 13.5px; }
 `;
@@ -144,7 +153,8 @@ const apply = () => {
   }
   $('#nomatch').hidden = shown > 0 || cards().length === 0;
 };
-for (const c of cards()) {
+for (const [i, c] of cards().entries()) {
+  c.style.animationDelay = Math.min(1, 0.2 + i * 0.06) + 's';
   const when = c.querySelector('.when');
   if (when) { when.textContent = ago(c.dataset.started); const d = new Date(c.dataset.started); if (!isNaN(d)) when.title = d.toLocaleString(); }
 }
@@ -217,7 +227,7 @@ const indexHtml = (base, nonce) => {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Browser test recordings</title><style>${baseStyle}${LIBRARY_STYLE}</style></head>
 <body><div class="wrap">
-<header class="top"><div><h1>Recordings</h1><p class="muted" style="margin-top:6px" title="${esc(root)}">${esc(root)}</p></div><label class="search"><span class="ico">${ICONS.search}</span><input id="q" type="search" placeholder="Search recordings" autocomplete="off" aria-label="Search recordings"></label></header>
+<header class="top"><div><span class="hud live"><i></i>Local archive · loopback only</span><h1>Recordings</h1><p class="muted" style="margin-top:6px" title="${esc(root)}">${esc(root)}</p></div><label class="search"><span class="ico">${ICONS.search}</span><input id="q" type="search" placeholder="Search recordings" autocomplete="off" aria-label="Search recordings"></label></header>
 <div class="tiles">${tile('t-total', 'recordings')}${tile('t-pass', 'passed')}${tile('t-fail', 'failed')}${tile('t-disk', 'on disk')}</div>
 <div id="filters" class="filters"><button type="button" class="fchip" data-f="all" aria-pressed="true">All</button><button type="button" class="fchip" data-f="pass" aria-pressed="false">Passed</button><button type="button" class="fchip" data-f="fail" aria-pressed="false">Failed</button><button type="button" class="fchip" data-f="other" aria-pressed="false">Other</button></div>
 <div id="list" class="grid">${runs.map(cardHtml).join('')}</div>
