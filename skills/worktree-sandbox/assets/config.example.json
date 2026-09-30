@@ -1,0 +1,24 @@
+{
+  "repoRoot": "~/projects/<repo>",
+  "worktreeRoot": "~/projects/<repo>-worktrees",
+  "browser": {
+    "startUrl": "http://localhost:3000/"
+  },
+  "polling": false,
+  "slots": {
+    "max": 20,
+    "viewBase": 7900,
+    "cdpBase": 9220
+  },
+  "services": {
+    "app": {
+      "image": "<image>",
+      "workdir": "",
+      "command": "<install and start command>",
+      "port": 3000,
+      "env": {},
+      "volumes": [],
+      "caches": {}
+    }
+  }
+}
