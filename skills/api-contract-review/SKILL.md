@@ -11,22 +11,22 @@ An API contract is a promise made to code you can't see and can't fix. This skil
 
 - The user says "review this API", "API design review", "is this a breaking change", "check backward compat", "review the contract", "review this OpenAPI spec", "/api-contract-review".
 - A new endpoint, GraphQL type, gRPC service, webhook payload, or event schema is being added or changed.
-- An endpoint is being designed and the contract deserves its own pass before implementation.
+- `plan-and-build` is designing an endpoint and the contract deserves its own pass before implementation.
 
 Do **not** auto-trigger for internal function signatures or module interfaces (that's `code-review` / `improve-codebase-architecture` territory) — this skill is for surfaces crossed by consumers who deploy independently: HTTP APIs, published events, webhooks, SDK-facing types.
 
 ## Workflow
 
-1. **Establish the before and the after.** For a change: the old contract is `git show` of the previous handler/spec/DTO, the new one is the working tree — read both; a breaking-change verdict without the before-state in hand is a hypothesis. For a brand-new endpoint there is no "before", so the compat section reduces to forward-compat design (step 4). Identify the consumers if discoverable (other repos, mobile apps, webhook subscribers, "unknown external") — unknown consumers raise the cost of every breaking change and the report should say so.
+1. **Establish the before and the after.** For a change: the old contract is `git show` of the previous handler/spec/DTO, the new one is the working tree — read both; a breaking-change verdict without the before-state in hand is a hypothesis. Uncommitted change: the before is `git show HEAD:<path>`. Committed branch work: `git show $(git merge-base HEAD <base-branch>):<path>`. If neither yields the file (renamed, spec lives in another repo), STOP and ask the user for the before-state — never reconstruct it from memory; until it is in hand, the report's Breaking section reads "not run: before-state unavailable", never "safe". For a brand-new endpoint there is no "before", so the compat section reduces to forward-compat design (step 4). Identify the consumers — grep sibling repos in the workspace for the route path and DTO names; if that turns up nothing, ask the user once; still unknown → record "unknown external" (other repos, mobile apps, webhook subscribers). Unknown consumers raise the cost of every breaking change and the report should say so.
 2. **Diff the consumer-visible surface for breaking changes.** Breaking = an existing valid consumer interaction stops working or changes meaning. The checklist, each judged by before/after citation:
    - Removed or renamed: path, method, field, enum value, header.
    - Type changes (string→int, scalar→object, nullable→non-null in responses).
    - Requiredness tightened on **requests** (new required field/param, stricter validation rejecting previously-valid input).
    - Semantics changed under the same name: status code for the same condition, default value, sort order consumers observe, pagination behavior, error `code` values, ID format.
-   - Response fields **removed or now-sometimes-absent** (additive response fields are non-breaking for tolerant readers — but check the repo's serializer isn't strict).
+   - Response fields **removed or now-sometimes-absent** (additive response fields are non-breaking for tolerant readers — but check the repo's serializer isn't strict (grep the repo's own spec/serializer config AND any known consumers for `additionalProperties: false`, `FAIL_ON_UNKNOWN_PROPERTIES`, `MissingMemberHandling.Error`, `JsonUnmappedMemberHandling.Disallow`; no hits and consumers unknown → state the tolerant-reader assumption in the report)).
    - ❌ "Changing this field feels risky." — no before/after, not a verdict.
    - ✅ "Breaking: `status` response field was `\"active\"|\"disabled\"` (git show `UserDto.cs:14`), now adds `\"suspended\"` — consumers with exhaustive enum handling will throw. New enum values in responses are breaking unless the contract documents open enums; nothing in the spec says so."
-3. **Judge design by local precedent, not by taste.** Before flagging anything as inconsistent, grep the sibling endpoints and read at least two. Then check the new surface against what THIS repo does: error envelope shape (find the canonical one; new endpoint must return it, not a fresh ad-hoc `{message}` — cite both), naming (`camelCase` vs `snake_case`, plural collections, ID field naming), auth placement (same middleware/guard pattern as siblings — compose with `security-review` if it's absent entirely), pagination style (cursor vs offset, envelope keys), timestamp format, route casing. A consistency finding without the cited precedent is an opinion; drop it or label it one.
+3. **Judge design by local precedent, not by taste.** Before flagging anything as inconsistent, grep the sibling endpoints and read at least two. If the repo has fewer than two comparable endpoints, there is no local precedent — skip consistency findings, say so in the report, and judge only step 4's invariants. Then check the new surface against what THIS repo does: error envelope shape (find the canonical one; new endpoint must return it, not a fresh ad-hoc `{message}` — cite both), naming (`camelCase` vs `snake_case`, plural collections, ID field naming), auth placement (same middleware/guard pattern as siblings — compose with `security-review` if it's absent entirely), pagination style (cursor vs offset, envelope keys), timestamp format, route casing. A consistency finding without the cited precedent is an opinion; drop it or label it one.
 4. **Check the design invariants that hurt later.** These apply even with zero consumers today, because they're near-impossible to retrofit:
    - **Collections paginate from day one** — an unpaginated list endpoint is a time bomb; adding pagination later breaks every consumer.
    - **Retryable writes are idempotent** — POSTs that create money-adjacent or non-deduplicable resources need an idempotency key or a natural dedup constraint; name which.
@@ -34,7 +34,22 @@ Do **not** auto-trigger for internal function signatures or module interfaces (t
    - **Errors are machine-usable** — a stable `code` field, not prose-only messages consumers will regex.
    - **Nothing leaks that can't be unshipped** — internal IDs, stack traces, ORM entity fields serialized wholesale (grep: does the handler return the entity type or a DTO?). Every response field is a permanent promise; flag fields with no evident consumer need.
    - **Timestamps and money have explicit units/zones/currency** — `amount: 4200` with no currency or minor-unit convention is a production incident on layaway.
-5. **Report in three ranked sections.** (a) **Breaking** — each with before/after citations and the migration path (version bump per the repo's existing strategy, additive alternative, deprecation window); (b) **Design** — invariant violations and precedent-cited inconsistencies; (c) **Questions** — semantics you couldn't determine from code (is this enum open? is this endpoint consumer-facing at all?). Zero findings is a valid outcome — an additive, precedent-matching endpoint should get a short pass, not invented nits. Never edit code or specs unprompted.
+5. **Report in three ranked sections.** (a) **Breaking** — each with before/after citations and the migration path (version bump per the repo's existing strategy, additive alternative, deprecation window); (b) **Design** — invariant violations and precedent-cited inconsistencies; (c) **Questions** — semantics you couldn't determine from code (is this enum open? is this endpoint consumer-facing at all?). Zero findings is a valid outcome — an additive, precedent-matching endpoint should get a short pass, not invented nits. Never edit code or specs unprompted. Before sending: every Breaking item quotes a before you actually ran `git show` for; every Design item cites a sibling file:line you opened; consumers you could not identify are listed as "unknown external"; anything not diffed appears in Coverage as not diffed — a diff you did not run is "not run", never "safe".
+
+Output format:
+
+```
+## Breaking
+- <element>: before `<quote>` (<git ref>) → after `<quote>` (<file:line>) — migration: <path>
+
+## Design
+- <finding> — precedent: <file:line>
+
+## Questions
+- <semantics you could not determine from code>
+
+Coverage: diffed <surface> against <ref>; not diffed: <what> — verdicts tagged `verified` (observed this session), `inferred` (deduced from something observed) or `assumed` (neither)
+```
 
 ## Examples
 
@@ -63,5 +78,5 @@ Do **not** auto-trigger for internal function signatures or module interfaces (t
 ## Notes
 
 - Spec-first repos (OpenAPI/proto/GraphQL SDL): review the spec diff as the contract and verify the implementation actually matches it (spot-check one handler against its spec entry — drift between the two is itself a finding). Code-first repos: the serialized DTOs + routes are the contract.
-- Deprecation over deletion: when a breaking change is genuinely wanted, the recommendation is the repo's existing versioning/deprecation mechanism if one exists (grep for it) — inventing a versioning strategy is a design conversation, not a review finding.
-- Apply `think-like-fable`: the risk lives in the unknown consumers, so compat verdicts get the re-derivation effort; "safe" claims are labeled by what was actually diffed; the report leads with the one change the user must not merge as-is.
+- Deprecation over deletion: when a breaking change is genuinely wanted, the recommendation is the repo's existing versioning/deprecation mechanism if one exists (grep for it) — inventing a versioning strategy is a `grill-with-docs` conversation, not a review finding.
+- Apply [`think-like-fable`](../think-like-fable/SKILL.md): the risk lives in the unknown consumers, so compat verdicts get the re-derivation effort; "safe" claims are labeled by what was actually diffed; the report leads with the one change the user must not merge as-is.

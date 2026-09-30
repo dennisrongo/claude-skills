@@ -17,7 +17,7 @@ Do **not** auto-trigger on every diff — `code-review` carries a security lens 
 
 ## Workflow
 
-1. **Fix the scope first.** A diff, a branch, a module, or an endpoint list — force the user to name it if ambiguous (one `AskUserQuestion`). Then map the trust boundaries inside that scope: every place data crosses from less-trusted to more-trusted (HTTP input, file upload, queue message, webhook, env/config, DB values rendered back out). Effort follows boundaries — a 500-line diff with one new endpoint gets most scrutiny on the endpoint.
+1. **Fix the scope first.** A diff, a branch, a module, or an endpoint list — if the request doesn't name one of these four, ask (one `AskUserQuestion`); never assume the working-tree diff. Then map the trust boundaries inside that scope: every place data crosses from less-trusted to more-trusted (HTTP input, file upload, queue message, webhook, env/config, DB values rendered back out). Effort follows boundaries — a 500-line diff with one new endpoint gets most scrutiny on the endpoint. Exit gate: a one-line scope statement plus the list of trust-boundary crossings found in it (or "none in scope").
 2. **Walk the catalog against the scope.** For each class, the check is named — run it, don't vibe it:
    - **Missing authn/authz** — for every new/changed route or handler, locate the auth check (middleware registration, guard attribute, explicit session call) and cite `file:line`. Then check *object-level* authz: does the handler verify the caller may touch **this** record, or only that they're logged in? Absence of either is a finding. Compare against how sibling endpoints in the repo do it.
    - **Trusting client-sent identity** — grep handlers in scope for user/account/tenant IDs read from body, query, or headers and used in queries or writes. The ID must come from the session/token.
@@ -27,11 +27,48 @@ Do **not** auto-trigger on every diff — `code-review` carries a security lens 
    - **Insecure deserialization / mass assignment** — deserializing external input into types with dangerous side effects; binding request bodies directly to DB entities so a caller can set `isAdmin`/`role`/`price` (check for an explicit DTO/allowlist between input and model).
    - **Crypto misuse** — hand-rolled hashing/encryption, fast hashes (MD5/SHA-x) for passwords instead of bcrypt/argon2/scrypt, `Math.random()`-class RNG for tokens, comparing secrets with `==` instead of constant-time compare.
    - **Dependency CVEs** — only via an actual tool run (`npm audit`, `dotnet list package --vulnerable`, `pip-audit`, `cargo audit`); quote the output. If no tool ran, the report says `dependencies: not checked` — never "dependencies look fine".
-3. **Evidence-gate every finding.** A finding must state, in one sentence, the attack path: *who* (unauthenticated user / any logged-in user / tenant B / insider) does *what* → gains *what*. No constructible path → demote to **hardening** (still reported, clearly separated). Severity from the path itself: **critical** = unauthenticated or cross-tenant data access/mutation, RCE, secret exposure; **high** = authenticated privilege escalation or injection with real reachable input; **medium** = requires unusual preconditions; **hardening** = defense-in-depth with no current path.
+
+   Exit gate: every one of the 8 classes above ends with exactly one verdict — finding(s), nothing found (naming the check you ran), not checked (reason), or N/A (reason). A class with no verdict blocks the report; if a named check can't be executed in this scope (no tool, no manifest, no repo access), its verdict is `not checked` — never inferred.
+3. **Evidence-gate every finding.** A finding must state, in one sentence, the attack path: *who* (unauthenticated user / any logged-in user / tenant B / insider) does *what* → gains *what*. No constructible path → demote to **hardening** (still reported, clearly separated). Severity from the path itself: **critical** = unauthenticated or cross-tenant data access/mutation, RCE, secret exposure; **high** = authenticated privilege escalation or injection with real reachable input; **medium** = a constructible path that needs a precondition the attacker doesn't control (a second misconfiguration, an already-compromised privileged account, non-default settings); **hardening** = defense-in-depth with no current path.
    - ❌ "The `userId` parameter could be dangerous." — no actor, no gain, not a finding.
    - ✅ "`GET /api/invoices/{id}` checks login but not ownership (`InvoiceController.cs:41` — no tenant filter in the query): any logged-in user who increments `id` reads other customers' invoices. Critical (IDOR)."
 4. **Verify before reporting.** For each finding, re-derive it: open the file, trace the input to the sink, confirm no sanitizer/guard sits between them (search the call chain, not just the hunk — the guard may live in middleware or a base class). A pattern-matched finding you didn't trace is labeled **unconfirmed** in the report, never stated in the same register as a traced one. Zero findings is a valid outcome and must be reported without padding.
-5. **Report.** Findings ranked by severity, each with `file:line`, attack path, and a recommended fix direction (not applied). Then the coverage statement: which catalog classes were checked with what evidence, and which were **not** checked (e.g. "infra/deployment config out of scope, dependencies not audited — no lockfile in scope"). End by asking per-finding whether to draft the fix — never edit unprompted.
+5. **Report.** Findings ranked by severity, each with `file:line`, attack path, and a recommended fix direction (not applied). Then the coverage statement: which catalog classes were checked with what evidence, and which were **not** checked (e.g. "infra/deployment config out of scope, dependencies not audited — no lockfile in scope"). End by asking per-finding whether to draft the fix — never edit unprompted. Before sending, confirm three things: every finding is traced or carries `unconfirmed`; every quoted tool output was observed this session — a run you did not observe is `not checked`, never quoted; and the word "secure" appears nowhere as a verdict.
+
+## Report format
+
+Fill this verbatim — placeholders in `<>`, findings ranked most-severe first, one Coverage row per catalog class (all 8), nothing omitted:
+
+```
+# Security review — <scope>
+
+[<critical|high|medium>] <title> — <file:line> — <traced|unconfirmed>
+Attack path: <who> does <what> → gains <what>
+Fix direction: <one line, not applied>
+
+[<critical|high|medium>] <title> — <file:line> — <traced|unconfirmed>
+Attack path: <who> does <what> → gains <what>
+Fix direction: <one line, not applied>
+
+## Hardening (no current attack path)
+- <title> — <file:line> — <one-line defense-in-depth note>
+
+## Coverage
+| Class                              | Verdict                                             |
+|------------------------------------|-----------------------------------------------------|
+| authn/authz                        | checked (<evidence>) / not checked (<reason>) / N/A (<reason>) |
+| client-sent identity               | checked (<evidence>) / not checked (<reason>) / N/A (<reason>) |
+| injection                          | checked (<evidence>) / not checked (<reason>) / N/A (<reason>) |
+| secrets                            | checked (<evidence>) / not checked (<reason>) / N/A (<reason>) |
+| SSRF/redirects                     | checked (<evidence>) / not checked (<reason>) / N/A (<reason>) |
+| deserialization/mass-assignment    | checked (<evidence>) / not checked (<reason>) / N/A (<reason>) |
+| crypto                             | checked (<evidence>) / not checked (<reason>) / N/A (<reason>) |
+| dependency CVEs                    | checked (<evidence>) / not checked (<reason>) / N/A (<reason>) |
+
+Nothing found in the classes checked — not "secure".
+```
+
+Then ask per-finding whether to draft the fix. On a clean pass, keep the header, the empty finding section, the Coverage table, and the closing line — the coverage table is the deliverable, not the finding count.
 
 ## Examples
 
@@ -56,10 +93,11 @@ Do **not** auto-trigger on every diff — `code-review` carries a security lens 
 - ❌ "Fixing" a committed secret by deleting the line — history retains it; the finding is "rotate this credential".
 - ❌ Skipping object-level authz because authentication exists — IDOR is the most common real-world miss, and it lives exactly in that gap.
 - ❌ Editing code or adding "quick fixes" unprompted — report, ask, then fix.
+- ❌ "Verifying" a finding by firing the attack at a running system — this is static review: re-derive on the code (trace input to sink), never against a live target, and never against systems outside the stated scope.
 - ✅ Scope → boundaries → named checks with citations → attack-path-gated findings → coverage statement including what was NOT checked.
 
 ## Notes
 
 - This skill is defensive: it reviews code the user owns or is authorized to audit. It doesn't produce working exploits — a one-sentence attack path is the proof standard, a PoC payload is not required and not offered beyond what's needed to demonstrate the flaw to the developer.
 - Language/framework specifics come from the repo: find how THIS codebase does auth, validation, and escaping (grep for the middleware/guards), then hunt for the places in scope that deviate from it — deviation from the local safe pattern is the highest-yield query.
-- Apply `think-like-fable`: effort at the boundaries (§3), every finding re-derived not recognized (§4), unconfirmed labeled out loud (§5), and attack your own report — the finding you're most confident in is the one to re-trace.
+- Apply [`think-like-fable`](../think-like-fable/SKILL.md): effort at the boundaries (§3), every finding re-derived not recognized (§4), unconfirmed labeled out loud (§5), and attack your own report — the finding you're most confident in is the one to re-trace.

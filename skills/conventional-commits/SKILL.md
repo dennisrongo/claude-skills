@@ -1,6 +1,6 @@
 ---
 name: conventional-commits
-description: Write git commit messages following the Conventional Commits specification, with an automatic ticket number pulled from the current branch and a project tag (API / CLIENT / CONSOLE / DB) when the project type can be detected from the diff. Use this skill whenever the user asks to write a commit message, asks for help committing changes, runs `git commit`, or mentions writing changelog entries — even if they don't explicitly say "conventional commits".
+description: Write git commit messages following the Conventional Commits specification, with an automatic ticket number pulled from the current branch and a project tag (API / CLIENT / CONSOLE / DB) when the project type can be detected from the diff. Use this skill whenever the user asks to write a commit message, asks for help committing changes, or runs `git commit` — even if they don't explicitly say "conventional commits". Do NOT use when the project's CLAUDE.md, CONTRIBUTING.md, or commit template defines a different commit format — the project convention always wins over this skill. Do NOT use for PR descriptions, release notes, or changelog entries — write those directly.
 ---
 
 # Conventional Commits
@@ -89,16 +89,25 @@ How to decide:
 
 ## Workflow
 
+**Hard rules:** NEVER run `git commit`, `git add`, `git commit --amend`, or `git push` unless the user explicitly asked you to commit in this session. If they did ask, commit exactly what is already staged — never stage additional files yourself, and never amend an existing commit to inject this message.
+
 When the user asks for a commit message:
 
+0. Check for commit-lint tooling: `.commitlintrc*`, `commitlint.config.*`, `semantic-release` in package.json, or a `.husky/commit-msg` hook. If any exists, the `#<ticket>` / `(<PROJECT>)` prefixes will fail parsing — start the header with `<type>` and carry the ticket as a `Refs: #<ticket>` footer instead. Prevents: commits rejected by the repo's own hooks.
 1. Get the current branch with `git rev-parse --abbrev-ref HEAD` and extract the ticket number per the rules above.
-2. Inspect the staged diff: `git diff --cached` (or `git diff` if nothing is staged).
+2. Inspect the staged diff: `git diff --cached` (or `git diff` if nothing is staged). If both `git diff --cached` and `git diff` come back empty, STOP and tell the user there is nothing to commit (run `git status --short` to check for untracked files and name them). Never compose a message from conversation memory — a diff you did not read this session does not exist. Prevents: commit messages describing work that was never staged.
 3. From the changed file paths, determine the project tag — or decide to omit it.
 4. Categorize the change into one of the types — based on the diff you just read, not on how the user described the work.
 5. Write a concise description.
-6. If the change is non-trivial, add a body explaining the rationale.
+6. Add a body when ANY of the following is true; otherwise omit it: (a) the diff changes more than one file; (b) the diff changes more than ~20 lines; (c) the header carries `!` or a `BREAKING CHANGE:` footer; (d) step 3 picked a dominant bucket and the secondary bucket must be mentioned (per "How to decide" item 3). The body states the *why*, wrapped at 72 chars (Rule 5).
 7. Flag breaking changes explicitly.
-8. Assemble the header as `[#<ticket>] [(<PROJECT>)] <type>: <description>`, including only the segments that apply.
+8. Assemble the header as `[#<ticket>] [(<PROJECT>)] <type>[(<scope>)][!]: <description>`, including only the segments that apply.
+9. Self-check before presenting — verify all four, don't eyeball them:
+   - (a) header character count ≤ 72 — count it, don't eyeball it;
+   - (b) the ticket appears verbatim in the branch name you printed this session, or `#` is omitted;
+   - (c) you can point at the specific diff hunk that justifies the type;
+   - (d) the project tag is justified by changed file paths you listed, or is omitted.
+10. Present the assembled message to the user and stop. When presenting, state the basis in one line — e.g. `ticket 12345 from branch feature/12345-x (verified); tag API from 4 files under services/api/ (verified)`. A branch or diff you did not observe this session is "not read", never "known".
 
 ## Examples
 
@@ -109,7 +118,7 @@ When the user asks for a commit message:
 
 #987 (DB) chore: add index on users.created_at for analytics query
 
-#42 (CONSOLE) feat: add bulk-export action to billing dashboard
+#42 (CONSOLE) feat: add bulk-export command to the billing worker
 
 (API) refactor: extract token validator into shared middleware
 # ^ branch had no ticket — `#` omitted

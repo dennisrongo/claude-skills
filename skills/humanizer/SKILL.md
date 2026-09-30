@@ -1,6 +1,6 @@
 ---
 name: humanizer
-description: Rewrite text so it does not read like an LLM wrote it. Strips AI-writing patterns (significance inflation, "delve"/"tapestry" vocabulary, rule-of-three lists, em-dash sales rhythm, sycophancy, hedge filler, tidy cadence) without inventing facts or putting a narrator into engineering prose. Use this skill whenever the user says "humanize", "de-AI", "de-slop", "un-ChatGPT", "review this for AI tells", or asks to make a draft sound less like ChatGPT — even if they never say "humanizer". Do not use it to derive a voice profile (that is creator-voice-profile) and do not apply it to your own output unless the user asked for a humanize pass.
+description: Rewrite text so it does not read like an LLM wrote it. Strips AI-writing patterns (significance inflation, "delve"/"tapestry" vocabulary, rule-of-three lists, em-dash sales rhythm, sycophancy, hedge filler, tidy cadence) without inventing facts or putting a narrator into engineering prose. Use this skill whenever the user says "humanize", "de-AI", "de-slop", "un-ChatGPT", "review this for AI tells", or asks to make a draft sound less like ChatGPT — even if they never say "humanizer". Do not use it to derive a voice profile from videos or transcripts, and do not apply it to your own output unless the user asked for a humanize pass.
 ---
 
 # Humanizer
@@ -19,7 +19,7 @@ Wikipedia's "Signs of AI writing" is a detection field guide, not a style manual
 Do **not** auto-trigger when:
 
 - you are writing your own PR descriptions, reviews, commit messages, docs, or summaries — unless the user asked for a humanize pass
-- the user says "match my voice" / "calibrate to my voice" / "voice profile" with no writing sample in this turn — that is `creator-voice-profile`
+- the user says "match my voice" / "calibrate to my voice" / "voice profile" with no writing sample in this turn — ask for a sample instead
 - the user is discussing AI writing in general, not asking for a rewrite
 
 ## Invocation modes
@@ -70,7 +70,7 @@ Only when the user provides a sample of *their* writing in this turn (inline or 
 
 No sample → do not invent a persona. Use the genre gate default.
 
-Do not derive a voice profile from videos or transcripts. Hand that to `creator-voice-profile`.
+Do not derive a voice profile from videos or transcripts; that is outside this skill.
 
 ## Personality (essay register only)
 
@@ -135,7 +135,7 @@ Source: `The experiment produced 3 million lines of code. Some developers were i
 - ❌ Forcing a 25-word sentence into a two-line email to hit a rhythm quota. ✅ Vary rhythm only when the draft is metronomic.
 - ❌ Reporting a single em dash or the word `framework` in a design doc as a finding. ✅ Clusters, or high-confidence wrappers. Zero findings is valid.
 - ❌ Showing draft + audit + final for "just de-slop this sentence." ✅ Embedded mode: final text only.
-- ❌ Treating "match my voice" as a reason to load this skill with no sample. ✅ `creator-voice-profile`, or ask for a sample.
+- ❌ Treating "match my voice" as a reason to load this skill with no sample. ✅ Ask for a sample.
 
 ## Notes
 

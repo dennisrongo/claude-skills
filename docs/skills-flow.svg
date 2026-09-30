@@ -1,11 +1,12 @@
-<svg width="680" height="910" viewBox="0 0 680 910" role="img" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif, -apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<svg width="680" height="1010" viewBox="0 0 680 1010" role="img" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif, -apple-system, Segoe UI, Helvetica, Arial, sans-serif">
 <title>claude-skills end-to-end flow</title>
-<desc>Idea to design-brief, scope check, three runners, working tree, inward and outward review, reviewed tree, ship-it to conventional-commits to create-pr, with support skills usable at any stage.</desc>
+<desc>Two entry points. A vague idea goes to one of three design-first skills — design-brief for an approved brief, grill-with-docs to stress-test against the domain, plan-and-build to grill and build in one pass, skipping the scope check. A defined task skips the design row. Scope check routes to task-executor, autopilot, or backlog-planner into goal-runner, all producing a working tree. The tree is gated by code-review, regression-hunt and e2e-verify (which records browser runs through record-browser-test when installed); code-review dispatches to the specialist lenses by what the diff contains. Then reviewed tree, ship-it, conventional-commits, create-pr. Support skills are callable from inside any stage.</desc>
 <defs>
 <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
 <style>
   .th { font-size: 14px; font-weight: 600; fill: #111827; }
   .ts { font-size: 12px; fill: #4b5563; }
+  .tl { font-size: 11px; fill: #6b7280; font-style: italic; }
   .box { fill: #f9fafb; stroke: #9ca3af; stroke-width: 0.75; }
   .purple { fill: #ede9fe; stroke: #7c3aed; stroke-width: 0.75; }
   .blue { fill: #dbeafe; stroke: #2563eb; stroke-width: 0.75; }
@@ -14,64 +15,94 @@
   .arr { fill: none; stroke: #6b7280; stroke-width: 1.2; }
 </style>
 </defs>
-<rect width="680" height="910" fill="#ffffff"/>
+<rect width="680" height="1010" fill="#ffffff"/>
 
 <!-- entry points -->
-<rect class="box" x="60" y="40" width="160" height="44" rx="4"/><text class="th" x="140" y="59" text-anchor="middle">Vague idea</text><text class="ts" x="140" y="75" text-anchor="middle">design is the question</text>
-<rect class="box" x="460" y="40" width="160" height="44" rx="4"/><text class="th" x="540" y="59" text-anchor="middle">Defined task</text><text class="ts" x="540" y="75" text-anchor="middle">ticket, spec, work item</text>
+<rect class="box" x="40" y="40" width="184" height="44" rx="4"/><text class="th" x="132" y="59" text-anchor="middle">Vague idea</text><text class="ts" x="132" y="75" text-anchor="middle">design is the question</text>
+<rect class="box" x="456" y="40" width="184" height="44" rx="4"/><text class="th" x="548" y="59" text-anchor="middle">Defined task</text><text class="ts" x="548" y="75" text-anchor="middle">ticket, spec, work item</text>
 
-<!-- design -->
-<rect class="purple" x="60" y="120" width="200" height="44" rx="4"/><text class="th" x="160" y="139" text-anchor="middle">design-brief</text><text class="ts" x="160" y="155" text-anchor="middle">decisions → approved brief</text>
+<!-- design row -->
+<rect class="purple" x="40" y="120" width="184" height="44" rx="4"/><text class="th" x="132" y="139" text-anchor="middle">design-brief</text><text class="ts" x="132" y="155" text-anchor="middle">decisions → approved brief</text>
+<rect class="purple" x="248" y="120" width="184" height="44" rx="4"/><text class="th" x="340" y="139" text-anchor="middle">grill-with-docs</text><text class="ts" x="340" y="155" text-anchor="middle">domain check → ADRs</text>
+<rect class="purple" x="456" y="120" width="184" height="44" rx="4"/><text class="th" x="548" y="139" text-anchor="middle">plan-and-build</text><text class="ts" x="548" y="155" text-anchor="middle">grill → plan → build</text>
 
 <!-- scope -->
-<rect class="box" x="240" y="210" width="200" height="44" rx="4"/><text class="th" x="340" y="229" text-anchor="middle">Scope check</text><text class="ts" x="340" y="245" text-anchor="middle">one change, or many?</text>
+<rect class="box" x="248" y="210" width="184" height="44" rx="4"/><text class="th" x="340" y="229" text-anchor="middle">Scope check</text><text class="ts" x="340" y="245" text-anchor="middle">one change, or many?</text>
 
 <!-- runners -->
-<rect class="blue" x="40" y="300" width="180" height="44" rx="4"/><text class="th" x="130" y="319" text-anchor="middle">task-executor</text><text class="ts" x="130" y="335" text-anchor="middle">plan gate · test-first steps</text>
-<rect class="blue" x="250" y="300" width="180" height="44" rx="4"/><text class="th" x="340" y="319" text-anchor="middle">autopilot</text><text class="ts" x="340" y="335" text-anchor="middle">hands-off · no commit</text>
-<rect class="blue" x="460" y="300" width="180" height="44" rx="4"/><text class="th" x="550" y="319" text-anchor="middle">backlog-planner</text><text class="ts" x="550" y="335" text-anchor="middle">tasks → ROADMAP.md</text>
-<rect class="blue" x="460" y="380" width="180" height="44" rx="4"/><text class="th" x="550" y="399" text-anchor="middle">goal-runner</text><text class="ts" x="550" y="415" text-anchor="middle">one task at a time</text>
+<rect class="blue" x="40" y="300" width="184" height="44" rx="4"/><text class="th" x="132" y="319" text-anchor="middle">task-executor</text><text class="ts" x="132" y="335" text-anchor="middle">plan gate · test-first</text>
+<rect class="blue" x="248" y="300" width="184" height="44" rx="4"/><text class="th" x="340" y="319" text-anchor="middle">autopilot</text><text class="ts" x="340" y="335" text-anchor="middle">hands-off · no commit</text>
+<rect class="blue" x="456" y="300" width="184" height="44" rx="4"/><text class="th" x="548" y="319" text-anchor="middle">backlog-planner</text><text class="ts" x="548" y="335" text-anchor="middle">tasks → ROADMAP.md</text>
+<rect class="blue" x="456" y="380" width="184" height="44" rx="4"/><text class="th" x="548" y="399" text-anchor="middle">goal-runner</text><text class="ts" x="548" y="415" text-anchor="middle">one task at a time</text>
 
 <!-- working tree -->
 <rect class="box" x="190" y="470" width="300" height="44" rx="4"/><text class="th" x="340" y="489" text-anchor="middle">Working tree / branch</text><text class="ts" x="340" y="505" text-anchor="middle">verified, uncommitted unless authorized</text>
 
-<!-- review -->
-<rect class="amber" x="40" y="560" width="185" height="44" rx="4"/><text class="th" x="132" y="579" text-anchor="middle">code-review</text><text class="ts" x="132" y="595" text-anchor="middle">the change itself</text>
-<rect class="amber" x="245" y="560" width="185" height="44" rx="4"/><text class="th" x="337" y="579" text-anchor="middle">regression-hunt</text><text class="ts" x="337" y="595" text-anchor="middle">outward blast radius</text>
-<rect class="amber" x="450" y="560" width="185" height="44" rx="4"/><text class="th" x="542" y="579" text-anchor="middle">Specialist lenses</text><text class="ts" x="542" y="595" text-anchor="middle">sql · security · e2e</text>
+<!-- review gates -->
+<rect class="amber" x="40" y="560" width="184" height="44" rx="4"/><text class="th" x="132" y="579" text-anchor="middle">code-review</text><text class="ts" x="132" y="595" text-anchor="middle">the change itself</text>
+<rect class="amber" x="248" y="560" width="184" height="44" rx="4"/><text class="th" x="340" y="579" text-anchor="middle">regression-hunt</text><text class="ts" x="340" y="595" text-anchor="middle">what it breaks elsewhere</text>
+<rect class="amber" x="456" y="560" width="184" height="44" rx="4"/><text class="th" x="548" y="579" text-anchor="middle">e2e-verify</text><text class="ts" x="548" y="595" text-anchor="middle">observed + recorded in browser</text>
+
+<!-- specialist lenses, dispatched by code-review -->
+<rect class="amber" x="40" y="650" width="184" height="44" rx="4"/><text class="th" x="132" y="669" text-anchor="middle">Specialist lenses</text><text class="ts" x="132" y="685" text-anchor="middle">sql · migration · security · API</text>
 
 <!-- reviewed -->
-<rect class="box" x="190" y="650" width="300" height="44" rx="4"/><text class="th" x="340" y="669" text-anchor="middle">Reviewed tree</text><text class="ts" x="340" y="685" text-anchor="middle">blockers fixed, on request only</text>
+<rect class="box" x="190" y="740" width="300" height="44" rx="4"/><text class="th" x="340" y="759" text-anchor="middle">Reviewed tree</text><text class="ts" x="340" y="775" text-anchor="middle">blockers fixed, on request only</text>
 
 <!-- ship -->
-<rect class="green" x="40" y="740" width="185" height="44" rx="4"/><text class="th" x="132" y="759" text-anchor="middle">ship-it</text><text class="ts" x="132" y="775" text-anchor="middle">operational readiness</text>
-<rect class="green" x="245" y="740" width="185" height="44" rx="4"/><text class="th" x="337" y="759" text-anchor="middle">conventional-commits</text><text class="ts" x="337" y="775" text-anchor="middle">commit message</text>
-<rect class="green" x="450" y="740" width="185" height="44" rx="4"/><text class="th" x="542" y="759" text-anchor="middle">create-pr</text><text class="ts" x="542" y="775" text-anchor="middle">gate → push → PR</text>
+<rect class="green" x="40" y="830" width="184" height="44" rx="4"/><text class="th" x="132" y="849" text-anchor="middle">ship-it</text><text class="ts" x="132" y="865" text-anchor="middle">operational readiness</text>
+<rect class="green" x="248" y="830" width="184" height="44" rx="4"/><text class="th" x="340" y="849" text-anchor="middle">conventional-commits</text><text class="ts" x="340" y="865" text-anchor="middle">commit message</text>
+<rect class="green" x="456" y="830" width="184" height="44" rx="4"/><text class="th" x="548" y="849" text-anchor="middle">create-pr</text><text class="ts" x="548" y="865" text-anchor="middle">gate → push → PR</text>
 
 <!-- support -->
-<rect x="40" y="830" width="600" height="60" rx="4" fill="none" stroke="#9ca3af" stroke-width="0.75" stroke-dasharray="4 3"/>
-<text class="th" x="340" y="853" text-anchor="middle">Support skills — called from inside any stage</text>
-<text class="ts" x="340" y="873" text-anchor="middle">think-like-fable · diagnose · write-tests · safe-refactor · handoff · improve-codebase-architecture</text>
+<rect x="40" y="920" width="600" height="60" rx="4" fill="none" stroke="#9ca3af" stroke-width="0.75" stroke-dasharray="4 3"/>
+<text class="th" x="340" y="943" text-anchor="middle">Support skills — called from inside any stage</text>
+<text class="ts" x="340" y="963" text-anchor="middle">think-like-fable · diagnose · write-tests · safe-refactor · handoff · improve-codebase-architecture</text>
 
-<!-- arrows -->
-<line class="arr" x1="140" y1="84" x2="140" y2="120" marker-end="url(#arrow)"/>
-<path class="arr" d="M160 164 V187 H340"/>
-<path class="arr" d="M540 84 V187 H340"/>
-<line class="arr" x1="340" y1="187" x2="340" y2="210" marker-end="url(#arrow)"/>
-<path class="arr" d="M340 254 V277 H130 V300" marker-end="url(#arrow)"/>
+<!-- arrows: idea into the three design-first skills -->
+<line class="arr" x1="132" y1="84" x2="132" y2="120" marker-end="url(#arrow)"/>
+<path class="arr" d="M132 84 V102 H340 V120" marker-end="url(#arrow)"/>
+<path class="arr" d="M132 84 V102 H548 V120" marker-end="url(#arrow)"/>
+
+<!-- defined task skips the design row -->
+<path class="arr" d="M548 84 V104 H662 V232 H432" marker-end="url(#arrow)"/>
+<text class="tl" x="656" y="98" text-anchor="end">spec already exists</text>
+
+<!-- design into the scope check -->
+<path class="arr" d="M132 164 V187 H340 V210" marker-end="url(#arrow)"/>
+<line class="arr" x1="340" y1="164" x2="340" y2="210" marker-end="url(#arrow)"/>
+
+<!-- plan-and-build sweeps past the scope check and the runners -->
+<path class="arr" d="M548 164 V196 H20 V492 H190" marker-end="url(#arrow)"/>
+<text class="tl" x="360" y="191" text-anchor="start">builds straight through</text>
+
+<!-- scope into runners -->
+<path class="arr" d="M340 254 V277 H132 V300" marker-end="url(#arrow)"/>
 <line class="arr" x1="340" y1="254" x2="340" y2="300" marker-end="url(#arrow)"/>
-<path class="arr" d="M340 254 V277 H550 V300" marker-end="url(#arrow)"/>
-<line class="arr" x1="550" y1="344" x2="550" y2="380" marker-end="url(#arrow)"/>
-<path class="arr" d="M130 344 V447 H340"/>
-<path class="arr" d="M550 424 V447 H340"/>
+<path class="arr" d="M340 254 V277 H548 V300" marker-end="url(#arrow)"/>
+<line class="arr" x1="548" y1="344" x2="548" y2="380" marker-end="url(#arrow)"/>
+
+<!-- runners into the tree -->
+<path class="arr" d="M132 344 V447 H340"/>
+<path class="arr" d="M548 424 V447 H340"/>
 <line class="arr" x1="340" y1="344" x2="340" y2="470" marker-end="url(#arrow)"/>
+
+<!-- tree into the three gates -->
 <path class="arr" d="M340 514 V537 H132 V560" marker-end="url(#arrow)"/>
 <line class="arr" x1="340" y1="514" x2="340" y2="560" marker-end="url(#arrow)"/>
-<path class="arr" d="M340 514 V537 H542 V560" marker-end="url(#arrow)"/>
-<path class="arr" d="M132 604 V627 H340"/>
-<path class="arr" d="M542 604 V627 H340"/>
-<line class="arr" x1="340" y1="604" x2="340" y2="650" marker-end="url(#arrow)"/>
-<path class="arr" d="M340 694 V717 H132 V740" marker-end="url(#arrow)"/>
-<line class="arr" x1="225" y1="762" x2="245" y2="762" marker-end="url(#arrow)"/>
-<line class="arr" x1="430" y1="762" x2="450" y2="762" marker-end="url(#arrow)"/>
+<path class="arr" d="M340 514 V537 H548 V560" marker-end="url(#arrow)"/>
+
+<!-- code-review dispatches to the specialists -->
+<line class="arr" x1="132" y1="604" x2="132" y2="650" marker-end="url(#arrow)"/>
+<text class="tl" x="142" y="631" text-anchor="start">by what the diff contains</text>
+
+<!-- gates into the reviewed tree -->
+<path class="arr" d="M132 694 V717 H340"/>
+<path class="arr" d="M548 604 V717 H340"/>
+<line class="arr" x1="340" y1="604" x2="340" y2="740" marker-end="url(#arrow)"/>
+
+<!-- ship chain -->
+<path class="arr" d="M340 784 V807 H132 V830" marker-end="url(#arrow)"/>
+<line class="arr" x1="224" y1="852" x2="248" y2="852" marker-end="url(#arrow)"/>
+<line class="arr" x1="432" y1="852" x2="456" y2="852" marker-end="url(#arrow)"/>
 </svg>

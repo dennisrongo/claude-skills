@@ -1,7 +1,7 @@
 ---
 name: code-review
 description: >-
-    Production-readiness code review at either scope — the uncommitted working tree (default) or a committed branch grouped per `#NNN` task (references/branch-review.md). Hunts DRY violations, dead code, leaky abstractions, missing error handling; auto-detects and runs the project's tests and build; findings categorized `blocking`/`suggestion`/`question`/`nit`/`praise`, and never edits code without permission — report first, ask, then fix. Non-trivial diffs get a lens council: parallel Explore sub-agents (correctness/design/security/tests/production-readiness) plus an adversarial critique round; small diffs skip it. Use this skill whenever the user says "code review", "review my code", "review the diff", "review my PR", "review my branch", "check my uncommitted changes", "is this production ready", "DRY check", or "/code-review" — even if they don't explicitly say "code review skill". Dirty tree → working-tree scope; "branch"/"PR" or clean tree with branch commits → branch scope.
+  Production-readiness code review at either scope - the uncommitted working tree (default) or a committed branch grouped per task id. Hunts DRY violations, dead code, leaky abstractions and missing error handling, runs the project's tests and build, and never edits code without permission. Use this skill whenever the user says "code review", "review my code", "review the diff", "review my PR", "review my branch", "check my uncommitted changes", "is this production ready", "DRY check", or "/code-review" - even if they do not name the skill. Dirty tree means working-tree scope; "branch" or "PR", or a clean tree with commits ahead of base, means branch scope. Hand SQL, migrations, API surface and auth changes to the specialist skills named in the body.
 ---
 
 # Code Review
@@ -324,6 +324,12 @@ End with the offer. Wait for the user's choice. Apply only the approved set, the
 ## Notes
 
 - If the working tree is clean, say so — and if the branch has commits ahead of its base, offer branch scope rather than silently pivoting to it.
+- **Hand off by what the diff contains — a general review is not a substitute for the specialist pass.** Name the handoff in the report even when you don't run it, so a skipped pass is visible rather than silent:
+  - `.sql` files, stored procs, functions → [`sql-review`](../sql-review/SKILL.md)
+  - schema migrations (EF Core, Prisma, alembic, Rails, Flyway, raw DDL) → [`migration-safety`](../migration-safety/SKILL.md)
+  - new or changed endpoints, DTOs, public API surface → [`api-contract-review`](../api-contract-review/SKILL.md)
+  - auth, authz, secrets, deserialization, anything taking untrusted input → [`security-review`](../security-review/SKILL.md)
+  - a release or feature about to go out → [`ship-it`](../ship-it/SKILL.md) for operational readiness
 - This skill judges the change; `regression-hunt` (if installed) traces what the change breaks in code that didn't change. On a diff that renames, changes a default, or touches shared state, suggest running both.
 - If tests take a long time, run them in the background and continue the static review while they run; reconcile the report once results land.
 - This skill composes with [`conventional-commits`](../conventional-commits/SKILL.md): after fixes are approved and applied, hand the commit-message authoring to that skill rather than improvising one here.

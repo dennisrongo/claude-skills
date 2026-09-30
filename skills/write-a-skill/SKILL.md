@@ -54,8 +54,11 @@ If you're in the library repo, prefer that destination — the user can install 
 7. **Write the description carefully** — see [Writing the description](#writing-the-description). This is the single highest-leverage part of the file.
 8. **Self-review** against the [Review checklist](#review-checklist) before showing the user.
    - **Prove it works (discipline and technique skills).** Re-run the baseline scenario from step 1 in a fresh sub-agent *with* the skill loaded. Complies → done. Finds a new rationalization → add its counter to the table and re-run. A skill you never watched change behavior is documentation, not a skill. Reference-only skills skip this; test retrieval instead (can a fresh agent find the right entry?).
-9. **If targeting the library repo, update `README.md`** — add a row to the skills table in alphabetical order with a one-paragraph "what it does" hook matching the existing voice. Verify the row by re-reading the file after the edit.
-10. **Report back**: skill path, the description verbatim, and the install command the user can run on other machines (`npx --yes github:dennisrongo/claude-skills install <name>` for library skills).
+9. **Leave out anything sensitive — before the file is saved, not before the push.** A skill drafted against real work absorbs the details around it. Check each class and remove it: credentials, tokens and connection strings; personal data (names, email addresses, usernames, and paths that carry them); internal infrastructure (hostnames, IP ranges, database / service / repo names); organization and client names; ticket numbers; and real record or customer IDs. A shared library is a publishing surface, and git history keeps what a later edit removes. Replace with placeholders — `<org>`, `example.invalid` or `example.com` for domains, an address from the documentation range (`203.0.113.x`) rather than a private one, `<repo>`, `~/projects/<name>` — and prefer an invented example to a sanitized real one — a redacted real case still leaks its shape. The rule: **a skill should read as if anyone could have written it, anywhere.**
+   - ❌ `Run the check against 203.0.113.5 with the svc_deploy token before the #4821 rollout — Dana owns that box.` — host, credential, ticket and a person, none of which help a reader.
+   - ✅ `Run the check against your dev host with a deploy credential before a risky rollout.` — same instruction, nothing private.
+10. **If targeting the library repo, update `README.md`** — add a row to the skills table in alphabetical order with a one-paragraph "what it does" hook matching the existing voice. Verify the row by re-reading the file after the edit.
+11. **Report back**: skill path, the description verbatim, and the install command the user can run on other machines (`npx --yes github:dennisrongo/claude-skills install <name>` for library skills).
 
 ## Required structure
 
@@ -180,6 +183,7 @@ Before showing the draft to the user:
 - [ ] Report-producing skills state "zero findings is a valid outcome"; command-running skills state "a result you didn't observe is 'not run', never 'passed'"
 - [ ] No time-sensitive info (specific dates, "as of 2026", model version numbers) unless load-bearing
 - [ ] File is under ~150 lines; longer content is split into `references/`
+- [ ] Nothing sensitive survives — credentials or tokens, personal data (names, emails, usernames, paths carrying them), internal hosts or IP ranges, real repo/system/database names, organization or client names, ticket numbers, record IDs. It reads as if anyone could have written it, anywhere
 - [ ] If targeting the library repo, README table row is added in alphabetical order
 
 ## Examples

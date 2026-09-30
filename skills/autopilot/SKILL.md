@@ -1,18 +1,7 @@
 ---
 name: autopilot
 description: >-
-  Fully autonomous end-to-end run of ONE defined task with no human gates — a work item
-  (Azure DevOps or GitHub id, or inline text) becomes a verified working tree plus an
-  evidence-backed report, and every question that would have been asked becomes a logged
-  assumption with its blast radius. Puts every applicable skill in this library to work on
-  observable predicates, and stops dead before any commit, push, or PR. Hard stops only for
-  a destructive or irreversible step, missing access, an architectural or unimplementable
-  spec, or three failed fixes on one behavior. Use this skill whenever the user says
-  "autopilot", "/autopilot", "run task <id> autonomously", "work this task end to end
-  without asking", "full autonomy on this", "do the whole task, skip commits and PR", or
-  launches a headless run with a task id — even if they don't name the skill. Not for
-  interactive plan approval (task-executor), a queue of tasks (goal-runner), or when
-  commits or PRs should be created (create-pr).
+  Fully autonomous end-to-end run of ONE defined task with no human gates - a work item becomes a verified working tree plus an evidence-backed report, with every question that would have been asked logged as an assumption and its blast radius. Stops before any commit, push or PR. Use this skill whenever the user says "autopilot", "/autopilot", "run task <id> autonomously", "work this task end to end without asking", "full autonomy on this", "do the whole task, skip commits and PR", or launches a headless run with a task id - even if they do not name the skill. Not for interactive plan approval (task-executor), a queue of tasks (goal-runner), or when commits or PRs should be created (create-pr).
 ---
 
 # Autopilot
@@ -48,7 +37,7 @@ Do **not** use when the user wants to approve the plan (`task-executor`), has a 
 
 | Phase | Skill | Use it when (observable predicate) | If absent |
 |---|---|---|---|
-| 0 | `azure-devops` / `github` | A work-item or issue id was given; `git remote -v` shows `devops.example.invalid`/`legacy-devops.example.invalid` → azure-devops, `github.com` → github | `az boards work-item show --id <id>` / `gh issue view <id> --json title,body,comments` if the CLI works; else hard stop and ask for the task text |
+| 0 | `github` | An issue id was given and `git remote -v` shows `github.com` | `gh issue view <id> --json title,body,comments` if the CLI works; any other host or no working CLI → hard stop and ask for the task text |
 | 0 | `design-brief` | `.claude/design-briefs/` holds an `APPROVED` brief whose Intent line matches → it is the spec. Task classified architectural → hard stop naming this skill as the route back | Hard stop still; the report lists the design decisions the human must make |
 | 0 | `codebase-explainer` | `ONBOARDING.md` exists → read it before inspecting (never run the skill; writing docs is out of scope) | Skip |
 | 0 / any | `handoff` | `.claude/handoffs/` holds a file naming this task → resume from its Next Session Prompt; context runs low mid-run → write one | Write objective, progress, decisions, next step to `.claude/handoffs/` |
@@ -144,7 +133,7 @@ Predicates false: <comma-separated skills whose predicate was false>
 
 ## Examples
 
-- **Headless work item.** "autopilot task 4711" → remote is `devops.example.invalid` → `azure-devops` pulls #4711 with two screenshots (both viewed); baseline `47 passed` quoted; 4 increments, each red-then-green under `write-tests`; the diff adds an endpoint → `code-review`, `security-review`, `api-contract-review`, `ship-it` run, one blocker (missing authz) fixed and re-reviewed; report has Requirements 5/5 met, a Skills used table with quoted headings, 2 cited assumptions, a `conventional-commits` block. No commits.
+- **Headless work item.** "autopilot task 4711" → remote is `github.com` → `github` pulls issue 4711 with two screenshots (both viewed); baseline `47 passed` quoted; 4 increments, each red-then-green under `write-tests`; the diff adds an endpoint → `code-review`, `security-review`, `api-contract-review`, `ship-it` run, one blocker (missing authz) fixed and re-reviewed; report has Requirements 5/5 met, a Skills used table with quoted headings, 2 cited assumptions, a `conventional-commits` block. No commits.
 - **Hard stop done right.** "run task 8912 end to end without asking" → task says "remove the legacy sync"; inspection shows production traffic still hitting it (log timestamps quoted). Destructive and contradicts the spec → hard stop after Phase 1, tree untouched, report names the one decision ("confirm the consumer at X is decommissioned").
 
 ## Anti-patterns

@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: Capture a session hand-off so work can resume cleanly in a new Claude session before context runs out. Writes a canonical dated Markdown file (objective, progress, decisions, files, open issues, and a ready-to-paste "Next Session Prompt") AND a lightweight project-memory pointer to it. Use this skill whenever the user says "/handoff", "hand off", "handoff", "save context", "preserve context", "running out of context", "wrap up for next session", "before we lose context", or otherwise asks to snapshot the current state for a fresh session — even if they don't say "skill".
+description: Capture a session hand-off so work can resume cleanly in a new Claude session before context runs out. Writes a canonical dated Markdown file (objective, progress, decisions, files, open issues, and a ready-to-paste "Next Session Prompt") AND a lightweight project-memory pointer to it. Use this skill whenever the user says "/handoff", "hand off", "handoff", "save context", "preserve context", "running out of context", "wrap up for next session", "before we lose context", or otherwise asks to snapshot the current state for a fresh session — even if they don't say "skill". Do NOT trigger on a bare "let's stop here" / "we're done" with no continuity cue — just end the session normally; wait for an explicit hand-off ask.
 ---
 
 # Handoff
@@ -31,7 +31,7 @@ Every invocation produces BOTH:
 
 ### 2. Lightweight memory pointer (for future-session discovery)
 
-Write a **project**-type memory entry per the auto-memory system. Keep it short — its only job is to surface the hand-off file:
+Write a **project**-type memory entry per the auto-memory system. The auto-memory directory is whichever directory your system context names as the persistent memory location — it already contains `MEMORY.md`. If this session exposes no such directory (auto-memory disabled or not present in this install), skip both pointer steps and add one line to the report-back: "No auto-memory in this install — the Next Session Prompt is the only discovery path; paste it into the fresh session." Keep it short — its only job is to surface the hand-off file:
 
 ```markdown
 ---
@@ -47,11 +47,15 @@ Active hand-off for <topic> at `<relative path to handoff file>`.
 **How to apply:** When the user opens a new session and references this topic, read the hand-off file first before doing anything else. Remove this memory entry once the work is finished or superseded.
 ```
 
-Then add the standard one-line pointer to `MEMORY.md`.
+Then append this line to the index list in `MEMORY.md`:
+
+```markdown
+- [handoff-<short-slug>](handoff-<short-slug>.md) — hand-off for <one-line topic>; full state in `<relative path to handoff file>`
+```
 
 ## Required sections in the hand-off file
 
-Use these headings in this order, with this phrasing. Skip a section only if it would be empty AND irrelevant — don't pad.
+Use these headings in this order, with this phrasing. **Objective**, **Progress**, **Important Files**, and **Next Session Prompt** are never skipped. **Blocked**, **Decisions**, and **Open Issues** may be dropped only when they would have zero entries — don't pad.
 
 ```markdown
 # Handoff: <topic> — <YYYY-MM-DD>
@@ -67,7 +71,7 @@ Use these headings in this order, with this phrasing. Skip a section only if it 
 - <done item>
 
 **In Progress:**
-- <what's mid-flight, with enough context to resume>
+- <what's mid-flight> — verified: <how observed> / assumed: <if wrong, what breaks>
 
 **Blocked:**
 - <blocker> — <on whom / what>
@@ -84,8 +88,8 @@ Use these headings in this order, with this phrasing. Skip a section only if it 
 
 ## Open Issues
 
-- <unresolved bug, race condition, or question>
-- <unresolved bug, race condition, or question>
+- <unresolved bug or question> — <verified|assumed>: <evidence, or blast radius if wrong>
+- <unresolved bug or question> — <verified|assumed>: <evidence, or blast radius if wrong>
 
 ## Next Session Prompt
 
@@ -105,6 +109,8 @@ Read `.claude/handoffs/<this-filename>.md` first.
 - <verification command, e.g. `pnpm test auth`>
 ```
 
+Tag every load-bearing claim `verified` (observed this session), `inferred` or `assumed` — the next session must know what was observed vs. guessed.
+
 The **Next Session Prompt** is the most important section — it's what the user pastes into the new chat to bootstrap continuity. Write it so a fresh Claude with no prior context can act on it immediately.
 
 A prompt that survives a fresh session vs. one that doesn't:
@@ -120,7 +126,7 @@ A prompt that survives a fresh session vs. one that doesn't:
 4. **Pick the filename** — today's date + short slug.
 5. **Create `.claude/handoffs/` if missing**, then write the file with the Write tool.
 6. **Write the memory pointer** to the auto-memory directory and index it in `MEMORY.md`.
-7. **Run the zero-context self-test.** Re-read the Next Session Prompt as if you knew nothing about this conversation: does it name the exact files, the exact command to run, the current failing state, and the immediate next action? If answering any of those requires this conversation, the hand-off is not done — fix it before reporting.
+7. **Run the zero-context self-test.** Re-read the Next Session Prompt as if you knew nothing about this conversation: does it name the exact files, the exact command to run, the current failing state, and the immediate next action? If answering any of those requires this conversation, the hand-off is not done — fix it before reporting. If a required detail is genuinely unrecoverable from this session (the exact failing test name or command never appeared in any output), write `unknown — next session must rediscover: <what, and the command that will find it>` in the prompt instead. A named gap is a valid hand-off; an invented specific is not.
 8. **Report back**: tell the user the file path, the slug, and quote the Next Session Prompt so they can copy it without opening the file.
 
 ## Verifying before you write
@@ -130,6 +136,8 @@ A prompt that survives a fresh session vs. one that doesn't:
 - If a decision in the conversation was reversed later, record the final decision — not the abandoned one.
 - **Exact artifacts, never paraphrases.** Commands verbatim and runnable (`pnpm vitest run src/auth -t linkAccount`, not "run the auth tests"). Failing test names copied from actual runner output. Branch name from `git branch --show-current`. Uncommitted-state description from actual `git status` output — never from memory of what you think you edited.
 - If tests were failing when work stopped, re-run them now and quote the exact failure. "Some tests failing" forces the next session to rediscover which — that's the context loss this skill exists to prevent.
+
+**When a verification step itself fails:** `git status` errors (not a git repo) → build Important Files from the conversation and tag the section `assumed — no git to verify against`. The test re-run cannot complete (runner unknown, fails to start, or context critically low — this skill fires precisely when context is scarce) → quote the last failure actually observed earlier in this session, tagged `assumed — not re-run at checkpoint`. Anything else: retry once changing exactly one thing, then record the failure in Open Issues. Never present unobserved output as current.
 
 ## Examples
 
@@ -153,13 +161,13 @@ The new session reads the referenced hand-off file first, confirms files still e
 - Vague "next steps" like "continue the work" — write concrete actions tied to specific files.
 - Recording every micro-decision — keep **Decisions** to choices that would be re-litigated otherwise.
 - Dumping the entire conversation transcript — hand-off is a synthesis, not a log.
-- Forgetting the memory pointer — without it, the next session won't know the hand-off exists unless the user remembers to paste the prompt.
+- Forgetting the memory pointer (when auto-memory exists) — without it, the next session won't know the hand-off exists unless the user remembers to paste the prompt.
 - Skipping the **Next Session Prompt** section — that's the single highest-value piece of the doc.
 - Quoting commands, test names, or branch names from memory instead of from actual output. `git status`, `git branch --show-current`, and the test runner are the sources of truth.
 - Shipping a Next Session Prompt that fails the zero-context self-test — if understanding any part of it requires this conversation, it's a summary, not a hand-off.
 
 ## Notes
 
-- Hand-off files are project-scoped and **should be git-ignored or committed deliberately** — they may contain in-progress reasoning the team doesn't want in history. Add `.claude/handoffs/` to `.gitignore` unless the project has explicitly opted in to committing them.
+- Hand-off files are project-scoped and **should be git-ignored or committed deliberately** — they may contain in-progress reasoning the team doesn't want in history. Opted in = a hand-off file is already tracked by git (`git ls-files .claude/handoffs/` prints anything). If not opted in and `.gitignore` does not already cover the path, append the line `.claude/handoffs/` to `.gitignore` and name that edit in the report-back — never touch `.gitignore` silently.
 - Once a hand-off is superseded (work finished, or a newer hand-off written for the same topic), delete the memory pointer so it doesn't accumulate stale entries. The Markdown file can stay as historical record.
 - If the project already has a different conventional location for session notes (e.g. `docs/handoffs/`, `NOTES.md`), prefer that location and tell the user you're using it.

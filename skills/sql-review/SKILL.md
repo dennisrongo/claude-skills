@@ -1,16 +1,6 @@
 ---
 name: sql-review
-description: >-
-    Pre-commit SQL code review for uncommitted database changes. Detects antipatterns that cause
-    real production incidents — broken TRY/CATCH error handling, swallowed errors, retry patterns
-    without loops, tables missing PK/indexes, type-mismatch truncation, dynamic-SQL injection,
-    NOLOCK in write paths, UPDATE/DELETE without WHERE, hardcoded env values, cross-DB refs, and
-    more (full catalog in the skill body). Reports BLOCKER/WARN/INFO findings with file:line
-    citations and fixes. Never edits SQL. Use this skill whenever the user says "/sql-review",
-    "review my SQL", "review the SQL diff", "lint the SQL", "check my SQL changes", "SQL
-    pre-commit check", "audit my stored proc", or asks about SQL antipatterns in a diff — even
-    if they don't name the skill. Distinct from code-review (general review) — this carries
-    SQL-specific incident patterns.
+description: Pre-commit review of uncommitted SQL against a catalog of antipatterns that cause real production incidents, reporting BLOCKER / WARN / INFO with file-and-line citations and a fix per finding. Never edits SQL. Use this skill whenever the user says "/sql-review", "review my SQL", "review the SQL diff", "lint the SQL", "check my SQL changes", "SQL pre-commit check", "audit my stored proc", or "any SQL antipatterns in this diff" - even if they do not name the skill. Distinct from code-review (general review) - this carries the SQL-specific incident patterns.
 ---
 
 # SQL Review
@@ -30,6 +20,8 @@ Do **not** auto-trigger when the user is asking for a *general* code review on a
 
 If you find issues, **do not start editing the SQL**. Produce the findings report first. After delivering it, ask the user per finding: *"Want me to fix #N?"* — and wait for an explicit yes. Pre-authorization ("fix them all") proceeds through the list; absent that, default to ask-per-fix.
 
+Same rule, harder: **never execute any SQL from the diff against any database** — not to reproduce, not to verify. This is a static read-only review; verification here means quoting the offending lines, not running them. (Doctrine's run-against-a-schema-copy row is deploy-time verification, out of scope for this pre-commit pass.)
+
 SQL changes are particularly sensitive because they often run against production data in a single non-reversible deployment. A drive-by refactor mid-review is more dangerous here than in application code.
 
 ## Workflow
@@ -42,6 +34,7 @@ SQL changes are particularly sensitive because they often run against production
 2. **Triage files into two buckets:**
    - **New files** (status `A` or `??`) — review the entire file. The whole file is new code; pre-existing antipatterns elsewhere don't apply.
    - **Modified files** (status `M`) — review only the changed hunks. The rest of the file may have legacy antipatterns the user isn't introducing (e.g. existing repos commonly have dozens of SPs with the `sp_send_dbmail`-in-CATCH pattern; flagging all of them on an unrelated edit creates noise).
+   - Exit gate: you have a list of changed `.sql` files, each tagged new or modified. If the list is empty, STOP — report "No uncommitted SQL changes found (checked staged, unstaged, untracked)" and ask whether the user meant a committed range (`git diff <range> -- '*.sql'`). Never widen scope to non-SQL files or committed history on your own.
 3. **For each check in [What to check](#what-to-check), look for the pattern** in the relevant scope (whole file for new files, diff hunks for modified files). Use ripgrep — don't try to fully parse SQL.
 4. **Categorize each finding** as `BLOCKER` / `WARN` / `INFO` (see [Categories](#categories)).
 5. **Cite `file:line`** for every finding. Line numbers come from the diff or the current file content.
@@ -104,10 +97,11 @@ Use ripgrep for detection. The patterns below are starting points — adapt to t
 
 7. **Parameter-to-column type-width mismatches** — passing `@x VARCHAR(50)` into a column declared `VARCHAR(3)` causes silent truncation (or runtime error 8152 depending on `ANSI_WARNINGS`).
    - Pattern: cross-reference the SP's `@param VARCHAR(N)` declarations against the target table's column widths. Flag any narrowing.
+   - Find the widths: `rg -n 'CREATE TABLE' --glob '*.sql'` filtered to the table name — DDL repos keep one file per table — and quote the column definition line as evidence. If the table's DDL is not in the repo, do NOT guess: record #7 as `not run — table DDL not available` in the report's checks line (see [Summary](#output-format)) and say so in one line.
    - **Fix:** Match widths between parameter and column, or add explicit `LEFT(@x, 3)` truncation at the boundary so it's intentional and visible.
 
 8. **Implicit type conversions in `JOIN` / `WHERE`** — `WHERE intCol = @varcharParam` defeats indexes and produces table scans.
-   - Pattern: `rg -n -i 'WHERE\s+\w+\s*=\s*@\w+' <file>` → cross-check parameter type vs. column type.
+   - Pattern: `rg -n -i 'WHERE\s+\w+\s*=\s*@\w+' <file>` → cross-check using the same DDL lookup as #7; same `not run` rule if the DDL is absent.
    - **Fix:** Match the parameter type to the column type. If they're authoritatively different, cast the *parameter*, not the column (casting the column kills the index).
 
 ### Security antipatterns (BLOCKER)
@@ -137,6 +131,7 @@ Use ripgrep for detection. The patterns below are starting points — adapt to t
 
 14. **`TRUNCATE TABLE` or `DROP` without `IF EXISTS`** in deploy scripts that are supposed to be idempotent (re-runnable). Many repos use flat idempotent `Deploy_*.sql` files where re-runs must not fail on missing objects.
     - Pattern: `rg -n -i 'DROP (TABLE|PROC|FUNCTION|VIEW)' <file>` → confirm `IF EXISTS` or `OBJECT_ID(...) IS NOT NULL` guard.
+    - Repo style: glob for `**/Deploy_*.sql` (or a re-run/idempotency note in the changed file's header comment). Present → idempotent-deploy repo, flag as BLOCKER. Absent → forward-only migrations, flag as WARN. Can't tell → ask the user which style the repo uses; don't pick silently.
     - **Fix:** `IF OBJECT_ID('dbo.X', 'U') IS NOT NULL DROP TABLE dbo.X;` or `DROP TABLE IF EXISTS dbo.X;` (SQL 2016+).
 
 ### Style / convention (WARN/INFO)
@@ -149,7 +144,7 @@ Use ripgrep for detection. The patterns below are starting points — adapt to t
     - Pattern: `rg -n 'DECLARE\s+\w+\s+CURSOR\b' <file>` → confirm `READ_ONLY FORWARD_ONLY LOCAL` (or `FAST_FORWARD`) is specified.
     - **Fix:** `DECLARE c CURSOR READ_ONLY FORWARD_ONLY LOCAL FOR SELECT ...`.
 
-17. **Missing `GRANT EXECUTE` at end of `CREATE PROC`** — only flag when the rest of the repo has a consistent `GRANT EXECUTE ON ... TO <role>` pattern at the end of every SP file. Detect the pattern by sampling a few neighboring `.sql` files; if every existing SP grants to the same role and this new SP doesn't, flag it.
+17. **Missing `GRANT EXECUTE` at end of `CREATE PROC`** — only flag when the rest of the repo has a consistent `GRANT EXECUTE ON ... TO <role>` pattern at the end of every SP file. Detect the pattern by sampling the 5 most recently modified `.sql` files in the same directory (all of them if fewer than 5); the convention exists only if at least 4 grant EXECUTE to the same role — otherwise there is no convention and #17 is not flagged.
     - Pattern: `rg -n 'GRANT\s+EXECUTE' <file>` → confirm present if the repo convention requires it.
     - **Fix:** Append `GRANT EXECUTE ON [dbo].[<proc>] TO [<app_role>] GO` matching the role the rest of the repo grants to.
 
@@ -194,6 +189,7 @@ Use ripgrep for detection. The patterns below are starting points — adapt to t
 - BLOCKER: <count>
 - WARN: <count>
 - INFO: <count>
+- Checks: <n>/17 run — <'all' | list each check not run with a one-line reason>
 
 ## Fixes I can apply
 
@@ -201,6 +197,18 @@ If you want, I can apply any of: B1, B2, W1. Which? (or "all", or "none")
 ```
 
 End with the offer. Wait for the user's choice.
+
+A check you could not perform is listed as `not run`, never silently omitted — a result you did not observe is "not run", never "passed".
+
+## Before delivering the report
+
+1. Every finding quotes the offending SQL verbatim with `file:line` — no paraphrases survived.
+2. Every BLOCKER/WARN carries its one-sentence incident — anything that couldn't name one got demoted.
+3. Modified files: every finding sits inside a changed hunk — legacy hits went to the footer note, not the findings.
+4. The Checks line accounts for all 17 — anything you couldn't run says `not run` with the reason.
+5. The report ends with the fix offer and you have not touched a file.
+
+Any "no" → fix the report, don't ship it.
 
 ## Examples
 
@@ -243,6 +251,7 @@ End with the offer. Wait for the user's choice.
 - ❌ Trying to parse SQL with a full grammar — use ripgrep on the diff text. The skill is heuristic by design.
 - ❌ Flagging every existing antipattern in a modified file. Stay scoped to the diff for modified files; full-file scan only for new files.
 - ❌ Editing SQL during the review pass. Report first, **always**.
+- ❌ Running SQL from the diff "to verify" a finding. Static review — evidence is the quoted line, never an execution.
 - ❌ Suggesting autofixes for `BLOCKER` items without asking. SQL deploys to production; user confirmation gates the change.
 - ❌ Listing a `nit` when there's a `BLOCKER` next to it. Lead with severity.
 - ❌ Hand-wavy findings without `file:line`.

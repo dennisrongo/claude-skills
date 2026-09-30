@@ -1,6 +1,6 @@
 ---
 name: ship-it
-description: Pre-launch operational-readiness checklist for a feature, release, or branch. Walks a fixed 10-category gate (logging, error handling, telemetry, feature flags, migrations, rollback, secrets, local-first storage, auth, update strategy), produces a structured report with PASS / GAP / N/A per item, every PASS backed by `file:line` evidence and every GAP cited as `no evidence found at <path>`. Final verdict groups findings as **Blocking** / **Should-fix** / **N/A with reason** / **Passing**. Use this skill whenever the user says "is this ready to ship?", "ship-it check", "/ship-it", "production checklist", "pre-launch checklist", "production readiness", "release readiness", "launch checklist", or asks whether a release is operationally safe — even if they don't explicitly say "ship-it skill". Use [`code-review`](../code-review/SKILL.md) for diff-level code quality (DRY, dead code, tests). Use `ship-it` for cross-cutting operational readiness. Never edits code unprompted — recommendation first, ask, then fix.
+description: Pre-launch operational-readiness checklist for a feature, release or branch - a fixed 10-category gate reported as PASS / GAP / N-A per item, every PASS backed by a file-and-line citation, grouped into Blocking / Should-fix / N-A with reason / Passing. Use this skill whenever the user says "is this ready to ship?", "ship-it check", "/ship-it", "production checklist", "pre-launch checklist", "production readiness", "release readiness", "launch checklist", or asks whether a release is operationally safe - even if they do not name the skill. Use `code-review` for diff-level code quality; this is cross-cutting operational readiness. Never edits code unprompted.
 ---
 
 # Ship It
@@ -35,13 +35,17 @@ Don't proceed until scope is named. Ask the user with `AskUserQuestion` if it is
 - A release tag / version bump? → `git diff <prev-tag>..HEAD`.
 - A module / directory? → scope to that path.
 
+Resolve the base, don't guess it: take it from the PR (`gh pr view --json baseRefName`) when one exists, else `git merge-base HEAD <default-branch>`. If the named branch / tag / path doesn't resolve, or no base can be established, STOP and ask — never fall back to `main` on a hunch or to auditing the whole repo.
+
 Echo the scope back in one line before starting Phase 2 (*"Auditing branch `feat/billing-v2` against base `main` — 14 files changed."*).
 
 ### Phase 2 — Walk the 10 categories
 
-For each category: state the criterion in one line, search the codebase for evidence, mark PASS / GAP / N/A. Use `Grep` and `Read` aggressively; spawn an `Explore` sub-agent for any category where the search would take more than 3 queries.
+For each category: state the criterion in one line, search the codebase for evidence, mark PASS / GAP / N/A. Use `Grep` and `Read` aggressively; spawn an `Explore` sub-agent for any category where the search would take more than 3 queries (no sub-agents in the harness? run the searches inline — the 3-query threshold still marks where to timebox a category and move on).
 
-Record each probe as you run it — the report cites them. A probe is a specific `Grep` pattern + path, a `Read` of a named file, or a command with its observed output. A sub-agent's result counts as a probe only if the sub-agent names its own probes and citations; "the agent said it's fine" is not evidence. Where a check depends on the user (dashboards, runbooks, rollout plans), record their answer as the probe (*"user confirmed: alert added to Grafana billing board"*) — an unanswered question stays GAP.
+A category PASSes only when every clause of its **What good looks like** line is either evidenced or inapplicable to the scope; one unmet or unchecked clause makes the whole category GAP, naming that clause (*"structured logs verified, PII sweep not run → GAP: not checked (PII in logs)"*). Partial credit is a GAP, never a PASS.
+
+Record each probe as you run it — the report cites them. A probe is a specific `Grep` pattern + path, a `Read` of a named file, or a command with its observed output. A sub-agent's result counts as a probe only if the sub-agent names its own probes and citations; "the agent said it's fine" is not evidence. Where a check depends on the user (dashboards, runbooks, rollout plans), record their answer as the probe (*"user confirmed: alert added to Grafana billing board"*) — an unanswered question stays GAP — a user-answer probe is taken on their word, not verified: keep the literal words "user confirmed" in the report line so assumed evidence never reads as observed.
 
 #### 1. Logging
 
@@ -59,7 +63,7 @@ Record each probe as you run it — the report cites them. A probe is a specific
 
 **What good looks like:** New code paths emit metrics (counts, latencies, error rates), traces propagate (OpenTelemetry / equivalent context passed through), dashboards / alerts updated to include the new signal.
 
-**How to check:** Grep for the metrics client in changed files. Confirm at least one counter and one latency histogram per significant code path. Ask the user whether the dashboards / alerts were updated — that's usually out-of-tree.
+**How to check:** Grep for the metrics client in changed files. Confirm at least one counter and one latency histogram per new or changed external boundary in scope (HTTP handler, queue consumer, scheduled job, outbound call). Ask the user whether the dashboards / alerts were updated — that's usually out-of-tree.
 
 #### 4. Feature flags
 
@@ -71,7 +75,7 @@ Record each probe as you run it — the report cites them. A probe is a specific
 
 **What good looks like:** Forward-compatible — the deployed code tolerates BOTH old and new schema for at least one release. Backfill plan named if columns are added. Runtime estimated against prod-size data (not just dev).
 
-**How to check:** Read the migration files. Look for `ALTER TABLE` against large tables — flag any that take exclusive locks. Confirm the matching code reads `column ?? fallback` rather than assuming the new shape exists. Ask about backfill strategy.
+**How to check:** Read the migration files. Look for `ALTER TABLE` against large tables — flag any that take exclusive locks — if you can't establish the table's prod size, treat it as large and say so in the finding. Confirm the matching code reads `column ?? fallback` rather than assuming the new shape exists. Ask about backfill strategy.
 
 #### 6. Rollback strategy
 
@@ -124,13 +128,13 @@ Group findings into four buckets. Order matters — blocking first.
 - **<category>:** <one-line reason grounded in the scope> (probe: `<what established it>`)
 
 ## Passing
-- **<category>:** <one-line evidence> — `<file:line>` (probe: `<grep pattern / file read / command>`)
+- **<category>:** <one-line evidence> — `<file:line>` (probe: `<grep pattern / file read / command / user answer>`)
 ```
 
 Same PASS, written badly and well:
 
 - ❌ `**Logging:** structured logging in place — src/billing/` — no line, no probe; unverifiable, could have been written without looking.
-- ✅ `**Logging:** new invoice paths log via structured logger with request ID — src/billing/invoice.ts:31 (probe: grep -n "logger\." src/billing/ → 6 call sites, all pass ctx.reqId)` — anyone can rerun the probe and land on the same line.
+- ✅ `**Logging:** new invoice paths log via structured logger with request ID — src/billing/invoice.ts:31 (probe: grep -n "logger\." src/billing/ → 6 call sites, all pass ctx.reqId; levels correct at all 6; secret/PII-shaped args in log calls → 0 hits)` — anyone can rerun the probe and land on the same line.
 
 **Blocking = any one of:**
 - Secrets in code / logs / committed config.
@@ -140,6 +144,8 @@ Same PASS, written badly and well:
 - Update strategy genuinely absent for the artifact type.
 
 Everything else is should-fix.
+
+**Before presenting, count to ten.** The four buckets must together hold exactly 10 entries — one per category. A category you can't place wasn't audited: file it as GAP `not checked` — Blocking if it is a category the Blocking list names (secrets, auth, migrations/rollback, feature flags/kill-switch, update strategy), else Should-fix. While counting, confirm every PASS line carries both a `file:line` and a named probe, and every N/A names its probe. A report that doesn't sum to ten never ships.
 
 ### Phase 4 — Offer to fix
 
@@ -187,4 +193,4 @@ After the report, ask: *"Want me to draft fixes for the blocking items, or stop 
 
 - Categories 1–7 + 9 apply to almost any service. Category 8 (local-first storage) is N/A for pure server work. Category 10 (update strategy) is where most teams underinvest — push on it.
 - The 10-category list is deliberately fixed. Don't extend it ad-hoc — if you find yourself wanting to add "performance" or "i18n" as a category, that's a separate skill or a should-fix entry under the closest existing category.
-- Pairs well with [`code-review`](../code-review/SKILL.md) (run code-review first for diff quality, then ship-it for operational readiness) and [`handoff`](../handoff/SKILL.md) (capture the report as the next-session pointer if shipping is deferred).
+- Pairs well with [`code-review`](../code-review/SKILL.md) (run code-review first for diff quality, then ship-it for operational readiness) and [`handoff`](../handoff/SKILL.md) to capture the report as the next-session pointer if shipping is deferred.
