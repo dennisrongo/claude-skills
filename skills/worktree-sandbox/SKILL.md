@@ -16,8 +16,8 @@ description: >-
 Each worktree gets a **slot** (1–20) running one Docker Compose stack. All services in a stack
 share one network namespace, so the API and the dev server keep the ports the app hardcodes, and
 the stack's own Chromium reaches them on `localhost` exactly as on a normal dev machine — even
-when the frontend hardcodes the API's address. Stacks
-can't see each other. Per slot, only two ports reach the host, both on `127.0.0.1`:
+when the frontend hardcodes the API's address. Stacks can't see each other. Per slot, only two
+ports reach the host, both on `127.0.0.1`:
 
 | What | Host URL |
 |---|---|
@@ -59,6 +59,13 @@ The branch argument defaults to the current worktree's branch.
 
 Always give the branch when passing claude arguments, and put them after `--`, or PowerShell
 binds them to wt's own switches.
+
+`wt` below is the alias from `references/setup.md`, which works inside a PowerShell session. From
+bash or any other shell there is no alias, and `pwsh -File` rejects `--`, so call it as:
+
+```
+pwsh -NoProfile -Command "& '<skill-dir>/scripts/wt.ps1' claude <branch> -- -p 'smoke test'"
+```
 
 ## Rules
 
@@ -108,6 +115,9 @@ read `wt logs -Service <name>` and quote the first error.
 When browser work starts, give the live-view URL so the user can watch or take over. If another
 skill is driving the test (`e2e-verify`, if installed), hand it your slot's CDP URL as the
 browser to use; without it, drive the pages yourself through the MCP tools.
+
+❌ Driving the stack's browser for ten minutes and reporting only "tests passed".
+✅ "Watch at `http://localhost:7904/vnc.html`; starting the checkout flow now."
 
 ## Report
 

@@ -1,6 +1,5 @@
 #!/bin/sh
-# Starts a virtual display, window manager, VNC + noVNC (port 7900), a CDP forwarder
-# (9222 -> Chromium's loopback-only 9223), then keeps Chromium running.
+# Chromium binds CDP to loopback only (9223); socat republishes it on 9222.
 set -e
 
 export DISPLAY=:99

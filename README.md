@@ -216,6 +216,8 @@ They stack rather than compete. One question routes them: **what does the result
 | Decide which flows to test, walk them, or write durable Playwright tests | [`e2e-verify`](./skills/e2e-verify/SKILL.md) |
 | A video that proves which tests ran and whether each check passed, so someone who didn't watch can replay it | [`record-browser-test`](./skills/record-browser-test/SKILL.md) (`e2e-verify` hands its walk to it) |
 
+Neither skill cares which browser it drives. When several branches run at once, [`worktree-sandbox`](./skills/worktree-sandbox/SKILL.md) gives each worktree its own stack and Chromium, and its CDP URL is the browser either one uses.
+
 A walk that can't be recorded (several page loads, native dialogs) still gets verified by another `e2e-verify` engine, and its report says `Recording: none - <why>` instead of implying footage exists.
 
 ### Reviewing work: which review skill?

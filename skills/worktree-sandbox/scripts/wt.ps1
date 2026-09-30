@@ -36,7 +36,6 @@ $SlotsPath    = Join-Path $WtHome 'slots.json'
 $OverrideFile = Join-Path $WtHome 'compose.override.yml'
 $Reserved     = @{ Names = @('net', 'browser'); Ports = @(5900, 7900, 9222, 9223) }
 
-# ---------------------------------------------------------------- helpers
 
 function Expand-HomePath([string]$Path) {
     if ($Path -and $Path.StartsWith('~')) { return Join-Path $HOME $Path.Substring(1).TrimStart('/', '\') }
@@ -88,7 +87,6 @@ function Resolve-Branch {
     throw 'Not inside a worktree on a branch. Pass a branch: wt <command> <branch>'
 }
 
-# ---------------------------------------------------------------- slots
 
 function Get-Slots {
     $map = @{}
@@ -122,7 +120,6 @@ function Get-Ports($Cfg, [int]$Slot) {
     }
 }
 
-# ---------------------------------------------------------------- git worktrees
 
 function Get-WorktreePath($Cfg, [string]$B, [switch]$Create) {
     $path = $null
@@ -146,7 +143,6 @@ function Get-WorktreePath($Cfg, [string]$B, [switch]$Create) {
     return $target
 }
 
-# ---------------------------------------------------------------- docker
 
 function Get-ComposeArgs([string]$B) {
     $composeFile = Join-Path (Get-StateDir $B) 'compose.json'
@@ -298,7 +294,6 @@ function Open-Path([string]$Path) {
     Write-Host "Open this file in a browser: $Path"
 }
 
-# ---------------------------------------------------------------- commands
 
 function Invoke-Init {
     New-Item -ItemType Directory -Force -Path $WtHome | Out-Null

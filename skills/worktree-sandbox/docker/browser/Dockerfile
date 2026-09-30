@@ -1,4 +1,3 @@
-# Chromium with a virtual display, live view (noVNC) and a CDP endpoint for agents.
 FROM debian:bookworm-slim
 
 RUN apt-get update \
