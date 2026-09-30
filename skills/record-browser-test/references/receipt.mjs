@@ -173,6 +173,7 @@ $('big').append(icon(GLYPH[D.verdict] || 'warn'));
 const badge = $('badge'); badge.className = 'badge ' + D.verdict; badge.append(icon(GLYPH[D.verdict] || 'warn'), document.createTextNode(LABEL[D.verdict] || String(D.verdict).toUpperCase()));
 $('title').textContent = D.suite || 'Browser test receipt';
 for (const part of String(D.stamp).split('  \\u00b7  ').filter(Boolean)) $('chips').append(make('span', 'chip', part));
+if (D.session) { const chip = make('span', 'chip', 'session ' + String(D.session).slice(0, 8)); chip.title = String(D.session); $('chips').append(chip); }
 if (D.error) $('chips').append(make('span', 'chip', 'error: ' + D.error));
 if (D.libraryUrl) { $('back').href = D.libraryUrl; $('back').hidden = false; }
 

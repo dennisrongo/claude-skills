@@ -17,7 +17,34 @@ Do **not** use it for exploratory walking or for deciding which flows to test - 
 
 ## What a run produces
 
-One folder per run, `~/.claude/recordings/<date>-<host>/` (outside every repo; set `RECORDINGS_DIR` to move it), holding `recording.mp4` (the video), `receipt.html` (a self-contained page: the video, every check with expected and seen values, click-to-jump timestamps and the script), `recording.steps.json` (every caption and check, machine-readable), `run.json`, `result.json` (what the body returned, or `null`) and `body.js` (the script that ran). **Replay** means running the same command with the same body again. Pass `--out <file.mp4>` to put the files somewhere you choose instead; the receipt is then written next to it as `<name>.receipt.html`.
+One folder per run, `~/.claude/recordings/<date>-<host>/` (outside every repo; set `RECORDINGS_DIR` to move it), holding `recording.mp4` (the video), `receipt.html` (a self-contained page: the video, every check with expected and seen values, click-to-jump timestamps and the script), `recording.steps.json` (every caption and check, machine-readable), `run.json` (which also carries the Claude session id when the runner has one, and the receipt shows it as a `session <first 8 characters>` chip, so a recording can be traced to the session whose transcript holds the command that made it), `result.json` (what the body returned, or `null`) and `body.js` (the script that ran). **Replay** means running the same command with the same body again. Pass `--out <file.mp4>` to put the files somewhere you choose instead; the receipt is then written next to it as `<name>.receipt.html`.
+
+## Requirements and how it works
+
+| Need | Detail |
+|---|---|
+| Node.js 22 or newer | Check with `node -v`. Install: `winget install OpenJS.NodeJS.LTS` (Windows), `brew install node` (macOS), or your distro's package |
+| Chrome or Chromium | Found automatically in the standard install locations for Windows, macOS and Linux. Anywhere else: `--chrome <path>` or `CHROME_PATH`. Install: `winget install Google.Chrome`, `brew install --cask google-chrome`, or your distro's package |
+| The skill folder | `npx --yes github:dennisrongo/claude-skills install record-browser-test` (add `-p` for one project), or link or copy `skills/record-browser-test` into `~/.claude/skills/` |
+| A reachable page | Loopback by default; any other host needs `--allow-host` (step 1) |
+| Git (optional) | Only read for the commit stamp; without it the stamp says so |
+
+Nothing else is installed or downloaded: no ffmpeg, no Playwright or Puppeteer, no npm packages, no network calls. The scripts are plain Node files.
+
+- **Control:** the runner starts a throwaway Chrome with its own empty profile and a remote-debugging port, then drives it over the Chrome DevTools Protocol through a WebSocket (`record-run.mjs`).
+- **Capture:** a recorder injected into the page calls `getDisplayMedia` and `MediaRecorder` to write H.264 MP4 (`avc1`) at 2.5 Mbit/s, and draws the captions and checks into the page so they are in the video (`record-tab-mp4.js`). Screen capture is pre-accepted only in that throwaway Chrome, never in your own browser.
+- **Finish:** Node patches the MP4 header to the true duration (`mp4.mjs`), writes the receipt (`receipt.mjs`) and opens it, then prints JSON. `play-check.mjs` replays the file in a headless Chrome to prove it decodes.
+
+**Check your setup before a real run:** `node -v`, then run the step-4 command with `--rehearse`. It finds Chrome, loads the page, runs the body and prints every check without recording anything.
+
+| Symptom | Cause and fix |
+|---|---|
+| `Node 22 or newer is required` | Upgrade Node |
+| `no Chrome found` | Pass `--chrome <path>` or set `CHROME_PATH` |
+| `refusing <host>` | Non-loopback target: check the page shows no personal data, then pass `--allow-host <host>` |
+| Run ends early with a Chrome exit code | The Chrome window was closed, or the page did a full reload (see Limits) |
+| Video will not play | Run `play-check.mjs`; quote its `error` |
+| macOS asks for Screen Recording permission | The runner cannot answer it; grant it once in System Settings |
 
 ## Workflow
 
@@ -38,7 +65,7 @@ node <skill-dir>/references/record-run.mjs --url http://localhost:3000/screen --
 
 **Rehearse first.** Run the same command with `--rehearse` added. It signs in and reaches the screen exactly as a real run does, runs the body with no capture, prints every check (with expected and seen values for each failure) and exits `0`, `3` or `1` as a real run would, in a few seconds. It writes no video and never touches an existing `--out`, `--result` or steps log. Fix the body until the rehearsal says what you expect, then record; otherwise a typo in the body costs a whole recording, and a fresh one-time URL if the app needs one. A rehearsal with `verdict none` warns that the body asserts nothing.
 
-Needs Node 22+ and Chrome; nothing to install. The MP4 header is patched to the true duration in Node; if it cannot be (a malformed header), the file still plays but reports a wrong length (`headerPatched: false`, plus a warning on stderr that names why). It launches its own throwaway Chrome, records the tab, ends on a card listing up to 10 checks with PASS or FAIL (failures first, the rest in the steps log), closes Chrome and prints JSON. A run in the default folder is always fresh; with an explicit `--out` it deletes that path's previous video, result, steps log and receipt first, so a stale file is never reported as this run's. Its JSON names the `receipt` and, for a folder run, the `library` command.
+Needs Node 22+ and Chrome; nothing to install. The MP4 header is patched to the true duration in Node; if it cannot be (a malformed header), the file still plays but reports a wrong length (`headerPatched: false`, plus a warning on stderr that names why). It launches its own throwaway Chrome, records the tab, ends on a card listing up to 10 checks with PASS or FAIL (failures first, the rest in the steps log), closes Chrome and prints JSON. A run in the default folder is always fresh; with an explicit `--out` it deletes that path's previous video, result, steps log and receipt first, so a stale file is never reported as this run's. Its JSON names the `receipt`, whether it was `opened`, and, for a folder run, the `library` command. **The receipt opens in the user's default browser by itself the moment the run finishes**, so no follow-up is needed for them to see the result; it is skipped for `--rehearse`, `--no-open`, a `CI` environment, a session that reports itself unattended (`CLAUDE_CODE_SESSION_ATTENDED=0`) and a Linux session with no display. `opened` is `yes` (the opener process started; the operating system does not report whether a window appeared), `skipped: <why>` or `failed: <why>`.
 
 | Need | Flag |
 |---|---|
@@ -51,6 +78,7 @@ Needs Node 22+ and Chrome; nothing to install. The MP4 header is patched to the 
 | Reaching the screen the video should open on | `--setup <file.js>` holds `async () => { ... }`. It runs once the page has loaded on the target origin and before recording starts, so nothing in it is on the video: use it to sign in or click through to the screen you want the video to open on. The runner only waits for `document.readyState`, so poll inside it for your app's own ready state (for example a menu or a route name). It must end on the target origin, which the runner checks when it returns, and it runs on every run, so make it safe to repeat |
 | Blur something on screen | `--mask <css selector>` (repeat it for more). Matching elements are blurred in the picture, for a name or an account number in a header. It hides pixels only: anything you pass to `rec.show` or `rec.check` still appears in the caption and in `steps.json`, so never put masked text in either |
 | Check the body before recording | `--rehearse` (see above) |
+| Do not open the receipt when the run ends | `--no-open`. By default the receipt opens in the default browser automatically |
 | Keep the URL's query string in the log | `--show-query`. By default the query string and fragment are replaced by `<query redacted>` in `steps.json` and in error messages, because they often carry tokens |
 
 **When a test account cannot sign in.** Some apps sign in by handoff: a page in one app opens the target in a NEW tab with a one-time token in the URL, and the target keeps its session per tab (`sessionStorage`). `--profile` cannot carry that between runs, the runner's single tab is not the tab a handoff opens, and there may be no test account at all. The only route is to give the runner the handoff URL as `--url`, and that moves a credential from one browser to another, so get the user's explicit yes for that run; a yes for an earlier run does not carry over.
@@ -61,7 +89,7 @@ Needs Node 22+ and Chrome; nothing to install. The MP4 header is patched to the 
 
 5. **Read the outcome.** Exit `0`: recorded, no check failed. Exit `3`: recorded, at least one check failed. Exit `1`: the run or recording itself failed (server down, redirected off the allowed host, Chrome closed, timeout). Exit `2`: bad arguments, a refused host or profile, or no Chrome. `verdict` in the JSON is `pass`, `fail`, `none` (nothing was asserted) or `error`; failed check labels are in `failed`. Exit `0` with `verdict none` is not a pass.
 6. **Play the video to the end before you rely on it.** A file can be written and still fail to decode. Run `node <skill-dir>/references/play-check.mjs recording.mp4`: it plays the file in a headless Chrome, takes about as long as the video, and exits `0` with `"played": true` only when it reached the end with no error. Exit `0` is `played to end: yes`; exit `1` is `no` (quote its `error`); if it could not run at all, write `not run`.
-7. **Hand the recording to the user.** A path in chat is not a download. Look in your tool list for one that sends a local file to the user (in the Claude desktop app, `SendUserFile`). If it is there, call it with `receipt.html` (it holds the video, the checks and the script, so it stands alone) and `recording.mp4`, the `Recording:` line as the caption, and the display mode left to the client. Test data on screen is not a reason to skip it. The only two reasons to send nothing are the two `Delivered:` values below: no such tool in your list, or the page showed real records. In either case print the absolute paths and one open command (`explorer /select,<path>`, `open -R <path>` or `xdg-open <folder>`).
+7. **Hand the recording to the user.** The receipt has already opened in the user's browser (`opened: yes`); do not open it again, and if `opened` was not `yes`, print the absolute path and the open command below. A path in chat is not a download. Look in your tool list for one that sends a local file to the user (in the Claude desktop app, `SendUserFile`). If it is there, call it with `receipt.html` (it holds the video, the checks and the script, so it stands alone) and `recording.mp4`, the `Recording:` line as the caption, and the display mode left to the client. Test data on screen is not a reason to skip it. The only two reasons to send nothing are the two `Delivered:` values below: no such tool in your list, or the page showed real records. In either case print the absolute paths and one open command (`explorer /select,<path>`, `open -R <path>` or `xdg-open <folder>`).
 
 ## Browse, download and delete past recordings
 
@@ -75,7 +103,7 @@ Needs Node 22+ and Chrome; nothing to install. The MP4 header is patched to the 
 ```
 Recording: <path> · <seconds> s (<paced N ms/update | real time>) · <host> · commit <sha> · verdict <pass|fail|none|error> · played to end: <yes|no|not run>
 Delivered: <file card sent | path only - no send-file tool in this session | path only - real records on screen>
-Receipt: <path to receipt.html> · all recordings: node <skill-dir>/references/library.mjs
+Receipt: <path to receipt.html> · opened in browser: <yes | skipped: why | failed: why> · all recordings: node <skill-dir>/references/library.mjs
 Tests: <n> checks, <p> pass, <f> fail - <label of each failed check>
 Not covered: <flows or paths the body did not drive>
 ```

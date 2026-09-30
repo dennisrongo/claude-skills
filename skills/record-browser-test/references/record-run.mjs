@@ -31,12 +31,13 @@ try {
       profile: { type: 'string' },
       mask: { type: 'string', multiple: true },
       rehearse: { type: 'boolean' },
+      'no-open': { type: 'boolean' },
       'show-query': { type: 'boolean' },
     },
   }));
 } catch (e) { fail(e.message); }
 
-if (!opt.url || !opt.body) fail('usage: node record-run.mjs --url <page> --body <test-body.js> [--out file.mp4] [--result file.json] [--setup setup.js] [--dwell ms] [--corner top-left|bottom-left] [--timeout s] [--chrome path] [--allow-host host] [--profile dir] [--mask selector]... [--rehearse] [--show-query]');
+if (!opt.url || !opt.body) fail('usage: node record-run.mjs --url <page> --body <test-body.js> [--out file.mp4] [--result file.json] [--setup setup.js] [--dwell ms] [--corner top-left|bottom-left] [--timeout s] [--chrome path] [--allow-host host] [--profile dir] [--mask selector]... [--rehearse] [--no-open] [--show-query]');
 for (const selector of opt.mask ?? []) if (!selector.trim() || /[{};<>\r\n]/.test(selector)) fail(`--mask needs a plain CSS selector with no braces, semicolons, angle brackets or newlines, got "${selector}"`);
 
 const number = (name, min, max) => {
@@ -81,6 +82,19 @@ const out = libraryMode ? join(runDir ?? resolve('.'), 'recording.mp4') : resolv
 const resultPath = opt.result !== undefined ? resolve(opt.result) : libraryMode ? join(runDir ?? resolve('.'), 'result.json') : resolve('result.json');
 const logPath = out.replace(/\.mp4$/i, '') + '.steps.json';
 const rawPath = out + '.raw';
+const openInBrowser = async (file) => {
+  if (opt['no-open']) return 'skipped: --no-open';
+  if (process.env.CI && !['0', 'false'].includes(process.env.CI.toLowerCase())) return 'skipped: CI environment';
+  if (process.env.CLAUDE_CODE_SESSION_ATTENDED === '0') return 'skipped: unattended session';
+  if (process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) return 'skipped: no display';
+  const [command, args] = process.platform === 'win32' ? ['rundll32', ['url.dll,FileProtocolHandler', file]]
+    : process.platform === 'darwin' ? ['open', [file]] : ['xdg-open', [file]];
+  return new Promise((done) => {
+    const child = spawn(command, args, { stdio: 'ignore', detached: true });
+    child.once('error', (e) => done(`failed: ${e.message}`));
+    child.once('spawn', () => { child.unref(); done('yes'); });
+  });
+};
 const receiptPath = runDir ? join(runDir, 'receipt.html') : out.replace(/\.mp4$/i, '') + '.receipt.html';
 if (!opt.rehearse) {
   mkdirSync(dirname(out), { recursive: true });
@@ -294,9 +308,10 @@ if (existsSync(out) && !patched) console.error(`record-run: warning: the MP4 hea
 if (outcome.state === 'done' && outcome.verdict === 'none') console.error('record-run: warning: the run reported no checks, so nothing was asserted');
 
 let receipt = null;
+let opened = 'skipped: no receipt';
 if (existsSync(out) && existsSync(logPath)) {
   try {
-    const run = summarize(JSON.parse(readFileSync(logPath, 'utf8')), { id: runDir ? basename(runDir) : basename(out), startedAt: startedAt.toISOString(), dwell, headerPatched: patched });
+    const run = summarize(JSON.parse(readFileSync(logPath, 'utf8')), { id: runDir ? basename(runDir) : basename(out), startedAt: startedAt.toISOString(), dwell, headerPatched: patched, session: process.env.CLAUDE_CODE_SESSION_ID || null });
     const media = statSync(out).size <= MAX_EMBED_BYTES ? { base64: readFileSync(out).toString('base64'), body: bodySource } : { src: basename(out), body: bodySource };
     writeFileSync(receiptPath, renderReceipt(run, media));
     receipt = receiptPath;
@@ -304,6 +319,8 @@ if (existsSync(out) && existsSync(logPath)) {
       writeFileSync(join(runDir, 'body.js'), bodySource);
       writeFileSync(join(runDir, 'run.json'), JSON.stringify(run, null, 2));
     }
+    opened = await openInBrowser(receiptPath);
+    if (opened.startsWith('failed')) console.error(`record-run: warning: could not open the receipt (${opened}); it is at ${receiptPath}`);
   } catch (e) {
     console.error(`record-run: warning: could not write the receipt files (${e.message}); the video is at ${out}`);
   }
@@ -311,5 +328,5 @@ if (existsSync(out) && existsSync(logPath)) {
   rmSync(runDir, { recursive: true, force: true });
 }
 
-console.log(JSON.stringify({ ...outcome, out: existsSync(out) ? out : null, headerPatched: patched, steps_log: existsSync(logPath) ? logPath : null, result: existsSync(resultPath) ? resultPath : null, receipt, library: receipt && runDir ? `node ${join(here, 'library.mjs')}` : null, stamp }, null, 2));
+console.log(JSON.stringify({ ...outcome, out: existsSync(out) ? out : null, headerPatched: patched, steps_log: existsSync(logPath) ? logPath : null, result: existsSync(resultPath) ? resultPath : null, receipt, opened, library: receipt && runDir ? `node ${join(here, 'library.mjs')}` : null, stamp }, null, 2));
 process.exit(outcome.state !== 'done' ? 1 : outcome.fail > 0 ? 3 : 0);
