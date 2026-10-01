@@ -471,6 +471,19 @@ $($tiles -join "`n")
     if (-not $NoOpen) { Open-Path $out }
 }
 
+function Invoke-Reload {
+    $cfg = Get-Config
+    $b = Resolve-Branch
+    $slot = Get-Slot $cfg $b
+    if (-not $slot) { throw "No stack for '$b'. Run: wt up $b" }
+    $cdp = "http://127.0.0.1:$((Get-Ports $cfg $slot).Cdp)"
+    $stale = @((Invoke-WebRequest "$cdp/json/list" -UseBasicParsing).Content | ConvertFrom-Json | Where-Object type -eq 'page')
+    Invoke-RestMethod -Method Put -Uri "$cdp/json/new?$($cfg.browser.startUrl)" | Out-Null
+    Start-Sleep 2
+    foreach ($tab in $stale) { Invoke-RestMethod "$cdp/json/close/$($tab.id)" | Out-Null }
+    Write-Host "Reloaded $($cfg.browser.startUrl) in slot $slot"
+}
+
 function Show-Help {
     @'
 wt - one sandboxed stack (your services + a dedicated Chromium) per git worktree
@@ -482,6 +495,7 @@ wt - one sandboxed stack (your services + a dedicated Chromium) per git worktree
   wt logs [branch] [-Service <name>|browser] [-Follow]
   wt claude [branch] [-- <claude args>]     start Claude Code wired to that slot's browser
   wt dashboard [-NoOpen]                    page tiling every stack's live view (tiles reconnect when a stack restarts)
+  wt reload [branch]                        reopen the start page (after services finish starting)
   wt down [branch] [-Purge]                 stop stack; -Purge drops volumes, profile and slot
   wt chown [branch]                         give container-written worktree files back to you
 
@@ -498,6 +512,7 @@ switch ($Command.ToLowerInvariant()) {
     'logs'      { Invoke-Logs }
     'claude'    { Invoke-Claude }
     'dashboard' { Invoke-Dashboard }
+    'reload'    { Invoke-Reload }
     'chown'     { $c = Get-Config; Repair-Ownership (Get-WorktreePath $c (Resolve-Branch)) }
     default     { Show-Help }
 }

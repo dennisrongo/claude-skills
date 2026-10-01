@@ -54,6 +54,7 @@ The branch argument defaults to the current worktree's branch.
 | `wt logs <branch> [-Service <name>\|browser] [-Follow]` | Container logs. |
 | `wt claude <branch> [-- <claude args>]` | Starts Claude Code in the worktree with MCP wired to that slot's browser. |
 | `wt dashboard [-NoOpen]` | Writes and opens a page tiling every stack's live view side by side; tiles reconnect when a stack restarts. |
+| `wt reload <branch>` | Reopens the start page in the stack's browser, replacing a stale "can't be reached" tab. |
 | `wt down <branch> [-Purge]` | Stops the stack. `-Purge` also deletes its volumes, browser profile, and slot. |
 | `wt chown <branch>` | Returns ownership of container-written files in the worktree to the user. |
 
@@ -141,4 +142,5 @@ Not run: <checks skipped, or "none">
 | `No free slots` | Ask the user which stopped branch to `wt down -Purge`. Never pick one yourself. |
 | Worktree files owned by root | `wt chown` (also runs on `wt down`). |
 | Live view blank | Chromium restarts on its own; check `wt logs -Service browser`. |
+| Live view says the site can't be reached | Chromium opened the start page before the services were up and kept the error. Once `wt ls` shows the services `up`, run `wt reload <branch>`. |
 | macOS over SSH: `keychain cannot be accessed ... does not allow user interaction` on pull | Docker's credential helper needs the login keychain, which an SSH session can't unlock. Run the first `wt up` from a terminal on the Mac itself so images are pulled and built there; `wt ls`, `which`, `logs` and `down` need no pull and worked over SSH. |
