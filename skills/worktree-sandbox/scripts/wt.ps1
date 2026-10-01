@@ -21,6 +21,7 @@ param(
     [switch]$NoBuild,
     [switch]$Purge,
     [switch]$Follow,
+    [switch]$NoOpen,
     [string]$Service,
     [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest
 )
@@ -54,6 +55,8 @@ function Get-Config {
         if ($Reserved.Names -contains $svc.Name) { throw "Service name '$($svc.Name)' is reserved by the sandbox" }
         if (-not $svc.Value.image) { throw "Service '$($svc.Name)' has no image" }
         if ($svc.Value.source -and -not (Test-Path (Expand-HomePath $svc.Value.source))) { throw "Service '$($svc.Name)' source not found: $($svc.Value.source)" }
+        if ($svc.Value.repo -and $svc.Value.source) { throw "Service '$($svc.Name)' sets both repo and source; use one" }
+        if ($svc.Value.repo -and -not (Test-Path (Expand-HomePath $svc.Value.repo))) { throw "Service '$($svc.Name)' repo not found: $($svc.Value.repo)" }
         if ("$($svc.Value.image) $($svc.Value.command)" -match '<[^>]+>') {
             throw "Service '$($svc.Name)' still has placeholder values in $ConfigPath. Fill in image and command (recipes: references/stacks.md)"
         }
@@ -122,26 +125,44 @@ function Get-Ports($Cfg, [int]$Slot) {
 }
 
 
-function Get-WorktreePath($Cfg, [string]$B, [switch]$Create) {
+function Get-WorktreePath($Cfg, [string]$B, [switch]$Create, [string]$RepoRoot, [string]$Folder, [string]$Base) {
+    if (-not $RepoRoot) { $RepoRoot = $Cfg.repoRoot }
+    if (-not $Folder) { $Folder = Get-SafeName $B }
     $path = $null
-    foreach ($line in (git -C $Cfg.repoRoot worktree list --porcelain)) {
+    foreach ($line in (git -C $RepoRoot worktree list --porcelain)) {
         if ($line -like 'worktree *') { $path = $line.Substring(9) }
         elseif ($line -eq "branch refs/heads/$B") { return $path }
     }
     if (-not $Create) { return $null }
 
-    $target = Join-Path $Cfg.worktreeRoot (Get-SafeName $B)
+    $target = Join-Path $Cfg.worktreeRoot $Folder
     New-Item -ItemType Directory -Force -Path $Cfg.worktreeRoot | Out-Null
-    git -C $Cfg.repoRoot show-ref --verify --quiet "refs/heads/$B"
+    git -C $RepoRoot show-ref --verify --quiet "refs/heads/$B"
     if ($LASTEXITCODE -eq 0) {
-        git -C $Cfg.repoRoot worktree add $target $B | Out-Host
+        git -C $RepoRoot worktree add $target $B | Out-Host
     } else {
-        git -C $Cfg.repoRoot show-ref --verify --quiet "refs/remotes/origin/$B"
-        if ($LASTEXITCODE -eq 0) { git -C $Cfg.repoRoot worktree add --track -b $B $target "origin/$B" | Out-Host }
-        else { git -C $Cfg.repoRoot worktree add -b $B $target | Out-Host }
+        git -C $RepoRoot show-ref --verify --quiet "refs/remotes/origin/$B"
+        if ($LASTEXITCODE -eq 0) { git -C $RepoRoot worktree add --track -b $B $target "origin/$B" | Out-Host }
+        elseif ($Base) {
+            git -C $RepoRoot show-ref --verify --quiet "refs/remotes/origin/$Base"
+            $start = if ($LASTEXITCODE -eq 0) { "origin/$Base" } else { $Base }
+            git -C $RepoRoot worktree add -b $B $target $start | Out-Host
+        }
+        else { git -C $RepoRoot worktree add -b $B $target | Out-Host }
     }
-    if ($LASTEXITCODE -ne 0) { throw "git worktree add failed for '$B'" }
+    if ($LASTEXITCODE -ne 0) { throw "git worktree add failed for '$B' in $RepoRoot" }
     return $target
+}
+
+function Get-ServiceWorktrees($Cfg, [string]$B, [switch]$Create) {
+    $paths = @{}
+    foreach ($prop in $Cfg.services.PSObject.Properties) {
+        if (-not $prop.Value.repo) { continue }
+        $base = if ($prop.Value.base) { $prop.Value.base } else { 'develop' }
+        $found = Get-WorktreePath $Cfg $B -Create:$Create -RepoRoot (Expand-HomePath $prop.Value.repo) -Folder "$(Get-SafeName $B)-$($prop.Name)" -Base $base
+        if ($found) { $paths[$prop.Name] = $found }
+    }
+    return $paths
 }
 
 
@@ -191,7 +212,7 @@ function ConvertTo-ComposeLiteral($Value) {
 
 function Get-VolumeKey([string]$Svc, [string]$Path) { "$Svc-$((Get-SafeName $Path))" }
 
-function New-ComposeModel($Cfg, [int]$Slot, [string]$WtPath) {
+function New-ComposeModel($Cfg, [int]$Slot, [string]$WtPath, [hashtable]$Extra = @{}) {
     $ports = Get-Ports $Cfg $Slot
     $services = [ordered]@{
         net = [ordered]@{
@@ -225,7 +246,7 @@ function New-ComposeModel($Cfg, [int]$Slot, [string]$WtPath) {
         if ($envMap.Count) { $def.environment = $envMap }
 
         $mounts = @()
-        $hostSource = if ($svc.source) { Expand-HomePath $svc.source } else { $WtPath }
+        $hostSource = if ($svc.repo) { $Extra[$name] } elseif ($svc.source) { Expand-HomePath $svc.source } else { $WtPath }
         if ($mount) { $mounts += "${hostSource}:/src" }
         foreach ($v in @($svc.volumes)) {
             if (-not $v) { continue }
@@ -257,10 +278,10 @@ function New-ComposeModel($Cfg, [int]$Slot, [string]$WtPath) {
     return [ordered]@{ services = $services; volumes = $volumes }
 }
 
-function Write-StackFiles($Cfg, [string]$B, [int]$Slot, [string]$WtPath) {
+function Write-StackFiles($Cfg, [string]$B, [int]$Slot, [string]$WtPath, [hashtable]$Extra = @{}) {
     $state = Get-StateDir $B
     $ports = Get-Ports $Cfg $Slot
-    $model = New-ComposeModel $Cfg $Slot $WtPath
+    $model = New-ComposeModel $Cfg $Slot $WtPath $Extra
     Write-LfFile (Join-Path $state 'compose.json') @(($model | ConvertTo-Json -Depth 12))
 
     $cdpUrl = "http://127.0.0.1:$($ports.Cdp)"
@@ -313,7 +334,8 @@ function Invoke-Up {
     $wtPath = Get-WorktreePath $cfg $b -Create
     $slot = Get-Slot $cfg $b -Allocate
     foreach ($v in (Get-CacheVolumes $cfg)) { docker volume create $v | Out-Null }
-    $ports = Write-StackFiles $cfg $b $slot $wtPath
+    $extra = Get-ServiceWorktrees $cfg $b -Create
+    $ports = Write-StackFiles $cfg $b $slot $wtPath $extra
 
     $upArgs = @('up', '-d', '--remove-orphans')
     if (-not $NoBuild) { $upArgs += '--build' }
@@ -381,6 +403,7 @@ function Invoke-Which {
         Branch    = $b
         Slot      = $slot
         Worktree  = Get-WorktreePath $cfg $b
+        ServiceWorktrees = (@((Get-ServiceWorktrees $cfg $b).GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" })) -join '; '
         Running   = (Get-RunningServices $b) -join ','
         AppUrl    = "$($cfg.browser.startUrl)  (open inside the stack browser)"
         LiveView  = "http://localhost:$($p.View)/vnc.html?autoconnect=true&resize=scale"
@@ -418,7 +441,6 @@ function Invoke-Dashboard {
     $cfg = Get-Config
     $slots = Get-Slots
     $tiles = foreach ($b in ($slots.Keys | Sort-Object { $slots[$_] })) {
-        if (-not ((Get-RunningServices $b) -contains 'browser')) { continue }
         $p = Get-Ports $cfg $slots[$b]
         $name = [System.Net.WebUtility]::HtmlEncode($b)
         $src = "http://localhost:$($p.View)/vnc.html?autoconnect=true&amp;resize=scale&amp;reconnect=true"
@@ -445,7 +467,8 @@ $($tiles -join "`n")
     New-Item -ItemType Directory -Force -Path $WtHome | Out-Null
     $out = Join-Path $WtHome 'dashboard.html'
     Write-LfFile $out @($html)
-    Open-Path $out
+    Write-Host "Dashboard: $out"
+    if (-not $NoOpen) { Open-Path $out }
 }
 
 function Show-Help {
@@ -458,7 +481,7 @@ wt - one sandboxed stack (your services + a dedicated Chromium) per git worktree
   wt which [branch]                         details for the current (or given) worktree
   wt logs [branch] [-Service <name>|browser] [-Follow]
   wt claude [branch] [-- <claude args>]     start Claude Code wired to that slot's browser
-  wt dashboard                              open a page tiling every running stack's live view
+  wt dashboard [-NoOpen]                    page tiling every stack's live view (tiles reconnect when a stack restarts)
   wt down [branch] [-Purge]                 stop stack; -Purge drops volumes, profile and slot
   wt chown [branch]                         give container-written worktree files back to you
 

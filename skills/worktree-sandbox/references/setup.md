@@ -62,7 +62,9 @@ Per service:
 | `port` | The port the service listens on inside the stack. Used by `wt ls` for health. Optional. |
 | `env` | Environment variables. |
 | `mount` | `false` to not mount the worktree (databases, caches). Default `true` at `/src`. |
-| `source` | Absolute path on the Docker host to mount at `/src` instead of the worktree, for a service that lives in a different repo. It is one shared checkout, not per-slot: every stack sees the same files and branch. |
+| `repo` | Path (on the Docker host) to a clone of a different repo that holds this service. `wt up <branch>` creates a worktree of that repo for the same branch, one per stack, and mounts it at `/src`. A branch missing from that repo starts from `base`. |
+| `base` | With `repo`: the branch to start from when `<branch>` doesn't exist in that repo. Default `develop`. |
+| `source` | Absolute path on the Docker host to mount at `/src` instead of the worktree, for a service that lives in a different repo. It is one shared checkout, not per-slot: every stack sees the same files and branch. Use `repo` for isolation. |
 | `volumes` | Paths kept in a per-stack Docker volume instead of the worktree — relative to `workdir` (`node_modules`, `bin`, `.venv`) or absolute (`/var/lib/postgresql/data`). |
 | `caches` | Named caches shared by **all** stacks, `{ "<name>": "<path in container>" }` — package caches such as `/root/.npm` or `/root/.cache/pip`. |
 
@@ -95,6 +97,17 @@ dev certificate via the override file and configure the server to use it; set
 
 **File ownership.** Containers run as root, so files they write into the worktree (build output,
 lockfiles) are root-owned on Linux and WSL. `wt down` and `wt chown` give them back to you.
+
+**Watching from another machine.** The live-view and CDP ports are bound to the Docker host's
+loopback only. From a second machine (or a VM on the Docker host), forward the ports you need and
+open the dashboard file `wt dashboard -NoOpen` prints:
+
+```
+ssh -N -L 7901:127.0.0.1:7901 -L 7902:127.0.0.1:7902 <user>@<docker-host>
+```
+
+Forward `viewBase + slot` for each stack to watch, and `cdpBase + slot` to drive its browser from
+there. Keep the forward running while you watch.
 
 **Different versions per branch.** Services come from one config. To run a branch with different
 images, point `wt` at a second config folder with the `WT_HOME` environment variable.
