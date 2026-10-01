@@ -260,8 +260,9 @@ function Test-Cdp([string]$B, [int]$Port) {
 function Invoke-Cdp([string]$B, [int]$Port, [string]$Method, [string]$Path) {
     if ($script:DockerCtx.Count) {
         $base = Get-ComposeArgs $B
-        $cmd = "exec 3<>/dev/tcp/127.0.0.1/9222; printf '$Method $Path HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3; cat <&3"
+        $cmd = ('exec 3<>/dev/tcp/127.0.0.1/9222; printf ''{0} {1} HTTP/1.1\r\nHost: localhost:9222\r\nConnection: close\r\n\r\n'' >&3; while IFS= read -r -t 0.5 line <&3; do printf ''%s\n'' "$line"; done; [ -n "$line" ] && printf ''%s\n'' "$line"' -f $Method, $Path)
         $raw = (& docker @base exec -T browser bash -c $cmd 2>$null) -join "`n"
+        if ($raw -notmatch '^HTTP/1\.[01] 200') { throw "CDP $Method ${Path}: the browser container gave no usable response" }
         $parts = $raw -split "`r?`n`r?`n", 2
         return $(if ($parts.Count -gt 1) { $parts[1] } else { '' })
     }
@@ -587,7 +588,10 @@ function Open-BrowserTabs($Cfg, [string]$B, [int]$Port, [int]$WaitSeconds) {
         $svcPort = ([uri]$u).Port
         $deadline = (Get-Date).AddSeconds($WaitSeconds)
         while (-not (Test-StackPort $B $svcPort) -and (Get-Date) -lt $deadline) { Start-Sleep 3 }
-        if (Test-StackPort $B $svcPort) { Invoke-Cdp $B $Port 'PUT' "/json/new?$u" | Out-Null; $opened++ }
+        if (Test-StackPort $B $svcPort) {
+            $made = Invoke-Cdp $B $Port 'PUT' "/json/new?$u"
+            if ($made -match '"id"') { $opened++ } else { Write-Warning "The browser did not open $u" }
+        }
         else { Write-Warning "$u is not answering yet. When it is, run: wt reload $B" }
     }
     if ($opened -eq @($urls).Count) {
