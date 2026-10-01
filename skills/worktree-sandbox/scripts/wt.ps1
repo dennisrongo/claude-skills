@@ -413,6 +413,7 @@ function Invoke-Up {
         if ($mainMoved) { Write-Host "worktree '$b' fast-forwarded to latest origin/$($cfg.base)" }
     }
     $slot = Get-Slot $cfg $b -Allocate
+    Write-DashboardLabels
     foreach ($v in (Get-CacheVolumes $cfg)) { & docker @($script:DockerCtx) volume create $v | Out-Null }
     $extra = Get-ServiceWorktrees $cfg $b -Create
     $ports = Write-StackFiles $cfg $b $slot $wtPath $extra
@@ -461,6 +462,7 @@ function Invoke-Down {
     Invoke-Compose $b $downArgs
     if ($Purge) {
         $slots = Get-Slots; $slots.Remove($b); Save-Slots $slots
+        Write-DashboardLabels
         Remove-Item -Recurse -Force (Get-StateDir $b)
         Write-Host "Purged '$b' (volumes, browser profile, slot). The git worktree itself is untouched."
     }
@@ -537,6 +539,15 @@ function Invoke-Claude {
     try { & claude --mcp-config $mcp @Rest } finally { Pop-Location }
 }
 
+function Write-DashboardLabels {
+    $slots = Get-Slots
+    $map = [ordered]@{}
+    foreach ($b in ($slots.Keys | Sort-Object { $slots[$_] })) { $map["$($slots[$b])"] = $b }
+    $json = ($map | ConvertTo-Json -Compress) -replace '<', '<'
+    New-Item -ItemType Directory -Force -Path $WtHome | Out-Null
+    Write-LfFile (Join-Path $WtHome 'dashboard-labels.js') @("window.WT_LABELS = $json;")
+}
+
 function Invoke-Dashboard {
     $cfg = Get-Config
     $assigned = Get-Slots
@@ -563,20 +574,33 @@ function Invoke-Dashboard {
 </style></head>
 <body>
 <h1>wt sandboxes <span><span id="count">0</span> running</span>
-  <small>checks every 4 s &middot; names from <span id="gen"></span> &middot; <a href="#" onclick="location.reload(); return false;">reload to refresh names</a></small></h1>
+  <small>updates itself every 4 s &middot; generated <span id="gen"></span></small></h1>
 <p id="none">No live view answers on the slot ports. Start an environment with <code>wt up &lt;branch&gt;</code>, or check the port forward to the Docker host.</p>
 <div class="grid" id="grid"></div>
 <script>
 var SLOTS = __SLOTS__;
 document.getElementById('gen').textContent = '__GENERATED__';
 var tiles = {};
+var LABELS = {};
+function labelOf(s) { return LABELS[s.slot] || s.label || ('slot ' + s.slot); }
+function loadLabels() {
+  var el = document.createElement('script');
+  el.src = 'dashboard-labels.js?t=' + Date.now();
+  el.onload = function () {
+    if (window.WT_LABELS) { LABELS = window.WT_LABELS; }
+    SLOTS.forEach(function (s) { if (tiles[s.slot]) { tiles[s.slot].querySelector('b').textContent = labelOf(s); } });
+    el.remove();
+  };
+  el.onerror = function () { el.remove(); };
+  document.head.appendChild(el);
+}
 function url(s) { return 'http://localhost:' + s.view + '/vnc.html?autoconnect=true&resize=scale&reconnect=true'; }
 function addTile(s) {
   var fig = document.createElement('figure');
   fig.style.order = s.slot;
   var cap = document.createElement('figcaption');
   var b = document.createElement('b');
-  b.textContent = s.label || ('slot ' + s.slot);
+  b.textContent = labelOf(s);
   cap.appendChild(b);
   cap.appendChild(document.createTextNode(' · slot ' + s.slot + ' · '));
   var a = document.createElement('a');
@@ -593,6 +617,7 @@ function probe(s) {
     .then(function () { return true; }, function () { return false; });
 }
 function tick() {
+  loadLabels();
   var pending = SLOTS.map(function (s) {
     return probe(s).then(function (up) {
       if (up && !tiles[s.slot]) { tiles[s.slot] = addTile(s); }
@@ -612,6 +637,7 @@ setInterval(tick, 4000);
 '@
     $html = $html.Replace('__SLOTS__', $json).Replace('__GENERATED__', (Get-Date -Format 'yyyy-MM-dd HH:mm'))
     New-Item -ItemType Directory -Force -Path $WtHome | Out-Null
+    Write-DashboardLabels
     $out = Join-Path $WtHome 'dashboard.html'
     Write-LfFile $out @($html)
     Write-Host "Dashboard: $out"
