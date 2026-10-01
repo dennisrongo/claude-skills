@@ -22,6 +22,7 @@ param(
     [switch]$Purge,
     [switch]$Follow,
     [switch]$NoOpen,
+    [switch]$NoHook,
     [string]$Service,
     [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest
 )
@@ -433,6 +434,14 @@ function Invoke-Up {
     Write-Host "Live view: http://localhost:$($ports.View)/vnc.html?autoconnect=true&resize=scale"
     Write-Host "CDP      : http://127.0.0.1:$($ports.Cdp)"
     Write-Host 'Package restores can take a few minutes on first run. A service is up only when wt ls says so.'
+
+    if ($cfg.hooks.afterUp -and -not $NoHook -and -not $wasRunning) {
+        $env:WT_BRANCH   = $b
+        $env:WT_SLOT     = "$slot"
+        $env:WT_VIEW_URL = "http://localhost:$($ports.View)/vnc.html?autoconnect=true&resize=scale"
+        $env:WT_CDP_URL  = "http://127.0.0.1:$($ports.Cdp)"
+        try { & pwsh -NoProfile -Command $cfg.hooks.afterUp } catch { Write-Warning "afterUp hook failed: $($_.Exception.Message)" }
+    }
 }
 
 function Invoke-Down {
@@ -572,7 +581,7 @@ function Show-Help {
 wt - one sandboxed stack (your services + a dedicated Chromium) per git worktree
 
   wt init                                   create ~/.wt/config.json
-  wt up [branch] [-NoBuild]                 create worktree if needed, assign slot, start stack
+  wt up [branch] [-NoBuild] [-NoHook]       create worktree if needed, assign slot, start stack, run hooks.afterUp
   wt ls                                     list slots, health, live-view and CDP URLs
   wt which [branch]                         details for the current (or given) worktree
   wt logs [branch] [-Service <name>|browser] [-Follow]

@@ -51,6 +51,7 @@ Top level:
 | `browser.flags` | Extra Chromium flags, space-separated, e.g. `--ignore-certificate-errors` for a self-signed dev certificate. |
 | `docker.context` | Run every Docker command against this Docker context, for a daemon on another machine (`docker context create <name> --docker host=ssh://<user>@<host>`). `wt` then runs where your git repos are. |
 | `docker.pathMap` | With `docker.context`: `{ "<path prefix on this machine>": "<same folder as the Docker host sees it>" }`, e.g. `{ "//Mac/Home/": "/Users/me/" }`. Bind sources are translated through it; a worktree outside every prefix is refused instead of mounting a path the daemon cannot see. |
+| `hooks.afterUp` | A PowerShell command run once when a stack newly starts (not when it was already running; skip with `-NoHook`), with `WT_BRANCH`, `WT_SLOT`, `WT_VIEW_URL` and `WT_CDP_URL` set. A failing hook only warns. Typical use: open the live view, e.g. `wt dashboard`, or a launcher that first starts a port forward. |
 | `polling` | `true` sets polling env vars for common watchers (chokidar, webpack, dotnet). Only for worktrees on network or NTFS paths. |
 | `slots.max`, `slots.viewBase`, `slots.cdpBase` | Slot count and host port bases (view port = `viewBase + slot`). |
 | `services` | One entry per container, keyed by service name (lowercase; `net` and `browser` are reserved). |
