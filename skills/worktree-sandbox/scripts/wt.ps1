@@ -38,6 +38,8 @@ $OverrideFile = Join-Path $WtHome 'compose.override.yml'
 $Reserved     = @{ Names = @('net', 'browser'); Ports = @(5900, 7900, 9222, 9223) }
 $script:DockerCtx = @()
 $script:PathMap   = $null
+$script:BaseMoved = $false
+$script:MovedServices = @()
 
 
 function Expand-HomePath([string]$Path) {
@@ -188,10 +190,11 @@ function Get-BaseWorktree($Cfg, [string]$RepoRoot, [string]$Base) {
     git -C $RepoRoot show-ref --verify --quiet "refs/remotes/origin/$Base"
     $start = if ($LASTEXITCODE -eq 0) { "origin/$Base" } else { $Base }
     if (Test-Path $target) {
-        $old = git -C $target rev-parse --short HEAD
+        $old = git -C $target rev-parse HEAD
+        if ($old -eq (git -C $RepoRoot rev-parse $start)) { return $target }
         git -C $target checkout -q -f --detach $start 2>&1 | Out-Null
-        $new = git -C $target rev-parse --short HEAD
-        if ($old -ne $new) { Write-Host "base worktree $(Split-Path $target -Leaf): $old -> $new (latest $start)" }
+        Write-Host "base worktree $(Split-Path $target -Leaf): $($old.Substring(0,8)) -> $((git -C $target rev-parse --short=8 HEAD)) (latest $start)"
+        $script:BaseMoved = $true
         return $target
     }
     New-Item -ItemType Directory -Force -Path $Cfg.worktreeRoot | Out-Null
@@ -208,7 +211,9 @@ function Get-ServiceWorktrees($Cfg, [string]$B, [switch]$Create) {
         $found = Get-WorktreePath $Cfg $B -RepoRoot $repoRoot -Optional
         if (-not $found -and $Create) {
             $base = if ($prop.Value.base) { $prop.Value.base } else { 'develop' }
+            $script:BaseMoved = $false
             $found = Get-BaseWorktree $Cfg $repoRoot $base
+            if ($script:BaseMoved) { $script:MovedServices += $prop.Name }
             Write-Host "$($prop.Name): no worktree for '$B' in $(Split-Path $repoRoot -Leaf); running the shared '$base' worktree at $found"
         }
         if ($found) { $paths[$prop.Name] = $found }
@@ -417,6 +422,7 @@ function Invoke-Up {
         $mounted = @($cfg.services.PSObject.Properties | Where-Object { -not $_.Value.repo -and -not $_.Value.source -and $_.Value.mount -ne $false } | ForEach-Object Name)
         if ($mounted.Count) { Invoke-Compose $b (@('restart') + $mounted) }
     }
+    if ($wasRunning -and $script:MovedServices.Count) { Invoke-Compose $b (@('restart') + $script:MovedServices) }
 
     Write-Host "`nWaiting for the browser..." -NoNewline
     $deadline = (Get-Date).AddSeconds(120)
