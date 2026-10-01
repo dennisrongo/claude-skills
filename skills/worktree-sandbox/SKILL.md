@@ -53,7 +53,7 @@ The branch argument defaults to the current worktree's branch.
 | `wt which` | Slot, ports, and URLs for the current worktree. |
 | `wt logs <branch> [-Service <name>\|browser] [-Follow]` | Container logs. |
 | `wt claude <branch> [-- <claude args>]` | Starts Claude Code in the worktree with MCP wired to that slot's browser. |
-| `wt dashboard [-NoOpen]` | Writes and opens a page tiling every stack's live view side by side; tiles reconnect when a stack restarts. |
+| `wt dashboard [-NoOpen]` | Writes and opens a page tiling every stack's live view side by side. The page checks the slot ports every few seconds, so tiles appear and disappear as stacks start and stop (reload only refreshes branch names). |
 | `wt reload <branch>` | Reopens the start page (and `browser.extraUrls`) in the stack's browser once their services answer, replacing stale tabs. A newly started stack does this by itself. |
 | `wt down <branch> [-Purge]` | Stops the stack. `-Purge` also deletes its volumes, browser profile, and slot. |
 | `wt chown <branch>` | Returns ownership of container-written files in the worktree to the user. |

@@ -539,31 +539,78 @@ function Invoke-Claude {
 
 function Invoke-Dashboard {
     $cfg = Get-Config
-    $slots = Get-Slots
-    $tiles = foreach ($b in ($slots.Keys | Sort-Object { $slots[$_] })) {
-        $p = Get-Ports $cfg $slots[$b]
-        $name = [System.Net.WebUtility]::HtmlEncode($b)
-        $src = "http://localhost:$($p.View)/vnc.html?autoconnect=true&amp;resize=scale&amp;reconnect=true"
-        "<figure><figcaption><b>$name</b> &middot; slot $($slots[$b]) &middot; <a href=`"$src`" target=`"_blank`">open</a></figcaption><iframe src=`"$src`"></iframe></figure>"
+    $assigned = Get-Slots
+    $byNumber = @{}
+    foreach ($b in $assigned.Keys) { $byNumber[[int]$assigned[$b]] = $b }
+    $list = foreach ($n in 1..[int]$cfg.slots.max) {
+        $p = Get-Ports $cfg $n
+        [ordered]@{ slot = $n; view = $p.View; label = $(if ($byNumber.ContainsKey($n)) { $byNumber[$n] } else { '' }) }
     }
-    if (-not $tiles) { $tiles = '<p>No running stacks. Start one with <code>wt up &lt;branch&gt;</code>, then re-run <code>wt dashboard</code>.</p>' }
-    $html = @"
+    $json = (@($list) | ConvertTo-Json -Compress -AsArray) -replace '<', '<'
+    $html = @'
 <!doctype html>
 <html><head><meta charset="utf-8"><title>wt sandboxes</title>
 <style>
   :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
   body { margin: 0; padding: 12px; background: Canvas; color: CanvasText; }
-  h1 { font-size: 16px; margin: 0 0 12px; }
+  h1 { font-size: 16px; margin: 0 0 12px; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+  h1 small { font-weight: normal; opacity: .7; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(560px, 1fr)); gap: 12px; }
   figure { margin: 0; border: 1px solid color-mix(in srgb, CanvasText 20%, transparent); border-radius: 8px; overflow: hidden; }
   figcaption { padding: 6px 10px; font-size: 13px; }
   iframe { width: 100%; aspect-ratio: 16 / 10; border: 0; display: block; }
+  #none { display: none; opacity: .8; }
 </style></head>
-<body><h1>wt sandboxes &middot; generated $(Get-Date -Format 'yyyy-MM-dd HH:mm')</h1>
-<div class="grid">
-$($tiles -join "`n")
-</div></body></html>
-"@
+<body>
+<h1>wt sandboxes <span><span id="count">0</span> running</span>
+  <small>checks every 4 s &middot; names from <span id="gen"></span> &middot; <a href="#" onclick="location.reload(); return false;">reload to refresh names</a></small></h1>
+<p id="none">No live view answers on the slot ports. Start an environment with <code>wt up &lt;branch&gt;</code>, or check the port forward to the Docker host.</p>
+<div class="grid" id="grid"></div>
+<script>
+var SLOTS = __SLOTS__;
+document.getElementById('gen').textContent = '__GENERATED__';
+var tiles = {};
+function url(s) { return 'http://localhost:' + s.view + '/vnc.html?autoconnect=true&resize=scale&reconnect=true'; }
+function addTile(s) {
+  var fig = document.createElement('figure');
+  fig.style.order = s.slot;
+  var cap = document.createElement('figcaption');
+  var b = document.createElement('b');
+  b.textContent = s.label || ('slot ' + s.slot);
+  cap.appendChild(b);
+  cap.appendChild(document.createTextNode(' · slot ' + s.slot + ' · '));
+  var a = document.createElement('a');
+  a.href = url(s); a.target = '_blank'; a.textContent = 'open';
+  cap.appendChild(a);
+  var f = document.createElement('iframe');
+  f.src = url(s);
+  fig.appendChild(cap); fig.appendChild(f);
+  document.getElementById('grid').appendChild(fig);
+  return fig;
+}
+function probe(s) {
+  return fetch('http://localhost:' + s.view + '/vnc.html', { mode: 'no-cors', cache: 'no-store' })
+    .then(function () { return true; }, function () { return false; });
+}
+function tick() {
+  var pending = SLOTS.map(function (s) {
+    return probe(s).then(function (up) {
+      if (up && !tiles[s.slot]) { tiles[s.slot] = addTile(s); }
+      else if (!up && tiles[s.slot]) { tiles[s.slot].remove(); delete tiles[s.slot]; }
+    });
+  });
+  Promise.all(pending).then(function () {
+    var n = Object.keys(tiles).length;
+    document.getElementById('count').textContent = n;
+    document.getElementById('none').style.display = n ? 'none' : 'block';
+  });
+}
+tick();
+setInterval(tick, 4000);
+</script>
+</body></html>
+'@
+    $html = $html.Replace('__SLOTS__', $json).Replace('__GENERATED__', (Get-Date -Format 'yyyy-MM-dd HH:mm'))
     New-Item -ItemType Directory -Force -Path $WtHome | Out-Null
     $out = Join-Path $WtHome 'dashboard.html'
     Write-LfFile $out @($html)
