@@ -31,6 +31,7 @@ while true; do
     --remote-debugging-port=9223 \
     --window-position=0,0 \
     --window-size="$W,$H" \
+    $CHROMIUM_FLAGS \
     "${START_URL:-about:blank}" || true
   echo "chromium exited; restarting in 1s"
   sleep 1

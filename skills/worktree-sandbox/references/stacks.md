@@ -68,6 +68,49 @@ each other on `localhost`.
 
 `--no-launch-profile` makes `dotnet` ignore `launchSettings.json` instead of needing it edited.
 
+## Debugging a .NET service from VS Code
+
+Install `vsdbg` once into a shared cache and run the service without `dotnet watch` (a restart
+drops the attached debugger):
+
+```json
+"api": {
+  "image": "mcr.microsoft.com/dotnet/sdk:8.0",
+  "workdir": "src/Api",
+  "command": "[ -x /vsdbg/vsdbg ] || curl -sSL https://aka.ms/getvsdbgsh | bash /dev/stdin -v latest -l /vsdbg; dotnet run --no-launch-profile -c Debug",
+  "port": 5000,
+  "env": { "ASPNETCORE_ENVIRONMENT": "Development", "ASPNETCORE_URLS": "http://+:5000" },
+  "volumes": ["bin", "obj"],
+  "caches": { "nuget": "/root/.nuget/packages", "vsdbg": "/vsdbg" }
+}
+```
+
+On the machine running VS Code, point a Docker context at the Docker host and attach through it:
+
+```
+docker context create <name> --docker host=ssh://<user>@<host>
+```
+
+```json
+{
+  "name": "Attach to api",
+  "type": "coreclr",
+  "request": "attach",
+  "processId": "${command:pickRemoteProcess}",
+  "pipeTransport": {
+    "pipeProgram": "docker",
+    "pipeArgs": ["--context", "<name>", "exec", "-i", "<project>-api-1"],
+    "debuggerPath": "/vsdbg/vsdbg",
+    "pipeCwd": "${workspaceFolder}"
+  },
+  "sourceFileMap": { "/src": "${workspaceFolder}" }
+}
+```
+
+Keep this configuration in a workspace file outside the repo. Breakpoints bind only when the
+checkout on the Docker host is at the same commit as the one open in VS Code. `<project>` is
+`wt-<branch>` as shown by `docker ps`.
+
 ## Legacy gulp / bower frontend
 
 ```json

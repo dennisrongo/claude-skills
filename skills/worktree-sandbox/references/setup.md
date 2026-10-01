@@ -47,6 +47,7 @@ Top level:
 | `repoRoot` | Main checkout. `~` is expanded. |
 | `worktreeRoot` | Where `wt up` creates new worktrees, one folder per branch. |
 | `browser.startUrl` | Page the stack's Chromium opens, e.g. `http://localhost:3000/`. |
+| `browser.flags` | Extra Chromium flags, space-separated, e.g. `--ignore-certificate-errors` for a self-signed dev certificate. |
 | `polling` | `true` sets polling env vars for common watchers (chokidar, webpack, dotnet). Only for worktrees on network or NTFS paths. |
 | `slots.max`, `slots.viewBase`, `slots.cdpBase` | Slot count and host port bases (view port = `viewBase + slot`). |
 | `services` | One entry per container, keyed by service name (lowercase; `net` and `browser` are reserved). |
@@ -61,6 +62,7 @@ Per service:
 | `port` | The port the service listens on inside the stack. Used by `wt ls` for health. Optional. |
 | `env` | Environment variables. |
 | `mount` | `false` to not mount the worktree (databases, caches). Default `true` at `/src`. |
+| `source` | Absolute path on the Docker host to mount at `/src` instead of the worktree, for a service that lives in a different repo. It is one shared checkout, not per-slot: every stack sees the same files and branch. |
 | `volumes` | Paths kept in a per-stack Docker volume instead of the worktree — relative to `workdir` (`node_modules`, `bin`, `.venv`) or absolute (`/var/lib/postgresql/data`). |
 | `caches` | Named caches shared by **all** stacks, `{ "<name>": "<path in container>" }` — package caches such as `/root/.npm` or `/root/.cache/pip`. |
 
@@ -88,9 +90,8 @@ services:
 ```
 
 **HTTPS APIs.** Plain HTTP inside the stack is simplest. If the frontend insists on HTTPS, mount a
-dev certificate via the override file and configure the server to use it; add
-`--ignore-certificate-errors` to the Chromium flags in `docker/browser/entrypoint.sh` for a
-self-signed cert.
+dev certificate via the override file and configure the server to use it; set
+`"browser.flags": "--ignore-certificate-errors"` in the config for a self-signed cert.
 
 **File ownership.** Containers run as root, so files they write into the worktree (build output,
 lockfiles) are root-owned on Linux and WSL. `wt down` and `wt chown` give them back to you.

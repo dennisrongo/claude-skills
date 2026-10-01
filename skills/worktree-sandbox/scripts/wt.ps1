@@ -53,6 +53,7 @@ function Get-Config {
         if ($svc.Name -notmatch '^[a-z0-9][a-z0-9_-]*$') { throw "Service name '$($svc.Name)' must be lowercase letters, digits, - or _" }
         if ($Reserved.Names -contains $svc.Name) { throw "Service name '$($svc.Name)' is reserved by the sandbox" }
         if (-not $svc.Value.image) { throw "Service '$($svc.Name)' has no image" }
+        if ($svc.Value.source -and -not (Test-Path (Expand-HomePath $svc.Value.source))) { throw "Service '$($svc.Name)' source not found: $($svc.Value.source)" }
         if ("$($svc.Value.image) $($svc.Value.command)" -match '<[^>]+>') {
             throw "Service '$($svc.Name)' still has placeholder values in $ConfigPath. Fill in image and command (recipes: references/stacks.md)"
         }
@@ -224,7 +225,8 @@ function New-ComposeModel($Cfg, [int]$Slot, [string]$WtPath) {
         if ($envMap.Count) { $def.environment = $envMap }
 
         $mounts = @()
-        if ($mount) { $mounts += "${WtPath}:/src" }
+        $hostSource = if ($svc.source) { Expand-HomePath $svc.source } else { $WtPath }
+        if ($mount) { $mounts += "${hostSource}:/src" }
         foreach ($v in @($svc.volumes)) {
             if (-not $v) { continue }
             $key = Get-VolumeKey $name $v
@@ -241,13 +243,15 @@ function New-ComposeModel($Cfg, [int]$Slot, [string]$WtPath) {
         $services[$name] = $def
     }
 
+    $browserEnv = [ordered]@{ START_URL = (ConvertTo-ComposeLiteral $Cfg.browser.startUrl); SCREEN = '1440x900x24' }
+    if ($Cfg.browser.flags) { $browserEnv.CHROMIUM_FLAGS = ConvertTo-ComposeLiteral $Cfg.browser.flags }
     $services.browser = [ordered]@{
         build        = $BrowserCtx
         image        = 'wt-sandbox-browser:latest'
         network_mode = 'service:net'
         depends_on   = @('net')
         shm_size     = '2gb'
-        environment  = [ordered]@{ START_URL = (ConvertTo-ComposeLiteral $Cfg.browser.startUrl); SCREEN = '1440x900x24' }
+        environment  = $browserEnv
         volumes      = @('browser_profile:/profile')
     }
     return [ordered]@{ services = $services; volumes = $volumes }
