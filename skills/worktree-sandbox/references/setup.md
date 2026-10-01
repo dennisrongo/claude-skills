@@ -45,9 +45,11 @@ Top level:
 | Field | Meaning |
 |---|---|
 | `repoRoot` | Main checkout. `~` is expanded. |
-| `worktreeRoot` | Where `wt up` creates new worktrees, one folder per branch. |
+| `worktreeRoot` | Where `wt up` creates new worktrees, as `<repo>-wt-<branch without feature/>` siblings. With `docker.pathMap`, put it in the shared folder. |
 | `browser.startUrl` | Page the stack's Chromium opens, e.g. `http://localhost:3000/`. |
 | `browser.flags` | Extra Chromium flags, space-separated, e.g. `--ignore-certificate-errors` for a self-signed dev certificate. |
+| `docker.context` | Run every Docker command against this Docker context, for a daemon on another machine (`docker context create <name> --docker host=ssh://<user>@<host>`). `wt` then runs where your git repos are. |
+| `docker.pathMap` | With `docker.context`: `{ "<path prefix on this machine>": "<same folder as the Docker host sees it>" }`, e.g. `{ "//Mac/Home/": "/Users/me/" }`. Bind sources are translated through it; a worktree outside every prefix is refused instead of mounting a path the daemon cannot see. |
 | `polling` | `true` sets polling env vars for common watchers (chokidar, webpack, dotnet). Only for worktrees on network or NTFS paths. |
 | `slots.max`, `slots.viewBase`, `slots.cdpBase` | Slot count and host port bases (view port = `viewBase + slot`). |
 | `services` | One entry per container, keyed by service name (lowercase; `net` and `browser` are reserved). |
@@ -62,8 +64,8 @@ Per service:
 | `port` | The port the service listens on inside the stack. Used by `wt ls` for health. Optional. |
 | `env` | Environment variables. |
 | `mount` | `false` to not mount the worktree (databases, caches). Default `true` at `/src`. |
-| `repo` | Path (on the Docker host) to a clone of a different repo that holds this service. `wt up <branch>` creates a worktree of that repo for the same branch, one per stack, and mounts it at `/src`. A branch missing from that repo starts from `base`. |
-| `base` | With `repo`: the branch to start from when `<branch>` doesn't exist in that repo. Default `develop`. |
+| `repo` | Path to the main checkout of a different repo that holds this service. `wt up <branch>` mounts that repo's worktree for the same branch at `/src` when one exists (create it yourself with `git worktree add`). Without one, the service runs a shared detached worktree of `base`; `wt` never creates branches in this repo. |
+| `base` | With `repo`: the branch the shared fallback worktree is detached at (`<repo>-wt-base`, created once). Default `develop`. |
 | `source` | Absolute path on the Docker host to mount at `/src` instead of the worktree, for a service that lives in a different repo. It is one shared checkout, not per-slot: every stack sees the same files and branch. Use `repo` for isolation. |
 | `volumes` | Paths kept in a per-stack Docker volume instead of the worktree — relative to `workdir` (`node_modules`, `bin`, `.venv`) or absolute (`/var/lib/postgresql/data`). |
 | `caches` | Named caches shared by **all** stacks, `{ "<name>": "<path in container>" }` — package caches such as `/root/.npm` or `/root/.cache/pip`. |
@@ -97,6 +99,12 @@ dev certificate via the override file and configure the server to use it; set
 
 **File ownership.** Containers run as root, so files they write into the worktree (build output,
 lockfiles) are root-owned on Linux and WSL. `wt down` and `wt chown` give them back to you.
+
+**Docker on another machine (e.g. a VM whose host runs the containers).** Keep git on the machine
+with the repos, share a folder so the Docker host sees the worktrees, and set `docker.context` plus
+`docker.pathMap`. Worktrees created by git on the VM record VM paths, so only the VM can run git on
+them; the containers only read the files. Credentials for pulling images are resolved by the
+client, so no keychain or login on the Docker host is needed.
 
 **Watching from another machine.** The live-view and CDP ports are bound to the Docker host's
 loopback only. From a second machine (or a VM on the Docker host), forward the ports you need and

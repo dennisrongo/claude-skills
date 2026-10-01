@@ -36,6 +36,8 @@ $ConfigPath   = Join-Path $WtHome 'config.json'
 $SlotsPath    = Join-Path $WtHome 'slots.json'
 $OverrideFile = Join-Path $WtHome 'compose.override.yml'
 $Reserved     = @{ Names = @('net', 'browser'); Ports = @(5900, 7900, 9222, 9223) }
+$script:DockerCtx = @()
+$script:PathMap   = $null
 
 
 function Expand-HomePath([string]$Path) {
@@ -50,6 +52,8 @@ function Get-Config {
     $cfg.worktreeRoot = Expand-HomePath $cfg.worktreeRoot
     if (-not (Test-Path $cfg.repoRoot)) { throw "repoRoot not found: $($cfg.repoRoot)" }
     if (-not $cfg.services) { throw "config.json has no services. See assets/config.example.json" }
+    $script:DockerCtx = if ($cfg.docker.context) { @('--context', $cfg.docker.context) } else { @() }
+    $script:PathMap   = $cfg.docker.pathMap
     foreach ($svc in $cfg.services.PSObject.Properties) {
         if ($svc.Name -notmatch '^[a-z0-9][a-z0-9_-]*$') { throw "Service name '$($svc.Name)' must be lowercase letters, digits, - or _" }
         if ($Reserved.Names -contains $svc.Name) { throw "Service name '$($svc.Name)' is reserved by the sandbox" }
@@ -63,6 +67,24 @@ function Get-Config {
         if ($svc.Value.port -and ($Reserved.Ports -contains [int]$svc.Value.port)) { throw "Service '$($svc.Name)' uses port $($svc.Value.port), reserved by the sandbox (5900, 7900, 9222, 9223)" }
     }
     return $cfg
+}
+
+function ConvertTo-DockerHostPath([string]$Path) {
+    if (-not $script:PathMap) { return $Path }
+    $norm = $Path -replace '\\', '/'
+    foreach ($m in $script:PathMap.PSObject.Properties) {
+        $from = $m.Name -replace '\\', '/'
+        if ($norm.StartsWith($from, [System.StringComparison]::OrdinalIgnoreCase)) { return $m.Value + $norm.Substring($from.Length) }
+    }
+    throw "'$Path' is not under any docker.pathMap prefix ($($script:PathMap.PSObject.Properties.Name -join ', ')), so the Docker host cannot see it. Create the worktree under the shared folder."
+}
+
+function Test-DockerVisible([string]$Path) {
+    try { ConvertTo-DockerHostPath $Path | Out-Null; return $true } catch { return $false }
+}
+
+function Get-BranchSlug([string]$B) {
+    return Get-SafeName ($B -replace '^(feature|bugfix|hotfix|release)/', '')
 }
 
 function Get-SafeName([string]$Name) {
@@ -125,13 +147,17 @@ function Get-Ports($Cfg, [int]$Slot) {
 }
 
 
-function Get-WorktreePath($Cfg, [string]$B, [switch]$Create, [string]$RepoRoot, [string]$Folder, [string]$Base) {
+function Get-WorktreePath($Cfg, [string]$B, [switch]$Create, [string]$RepoRoot, [string]$Folder, [string]$Base, [switch]$Optional) {
     if (-not $RepoRoot) { $RepoRoot = $Cfg.repoRoot }
-    if (-not $Folder) { $Folder = Get-SafeName $B }
+    if (-not $Folder) { $Folder = "$(Split-Path $RepoRoot -Leaf)-wt-$(Get-BranchSlug $B)" }
     $path = $null
     foreach ($line in (git -C $RepoRoot worktree list --porcelain)) {
         if ($line -like 'worktree *') { $path = $line.Substring(9) }
-        elseif ($line -eq "branch refs/heads/$B") { return $path }
+        elseif ($line -eq "branch refs/heads/$B") {
+            if (Test-DockerVisible $path) { return $path }
+            if ($Optional) { return $null }
+            throw "Branch '$B' is checked out at $path, which the Docker host cannot see. Create a worktree for it under $($Cfg.worktreeRoot) (name it $(Split-Path $RepoRoot -Leaf)-wt-<task>-<short>), or switch that checkout to another branch."
+        }
     }
     if (-not $Create) { return $null }
 
@@ -154,12 +180,29 @@ function Get-WorktreePath($Cfg, [string]$B, [switch]$Create, [string]$RepoRoot, 
     return $target
 }
 
+function Get-BaseWorktree($Cfg, [string]$RepoRoot, [string]$Base) {
+    $target = Join-Path $Cfg.worktreeRoot "$(Split-Path $RepoRoot -Leaf)-wt-base"
+    if (Test-Path $target) { return $target }
+    New-Item -ItemType Directory -Force -Path $Cfg.worktreeRoot | Out-Null
+    git -C $RepoRoot fetch -q origin $Base 2>$null
+    git -C $RepoRoot show-ref --verify --quiet "refs/remotes/origin/$Base"
+    $start = if ($LASTEXITCODE -eq 0) { "origin/$Base" } else { $Base }
+    git -C $RepoRoot worktree add --detach $target $start | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "git worktree add --detach failed for $Base in $RepoRoot" }
+    return $target
+}
+
 function Get-ServiceWorktrees($Cfg, [string]$B, [switch]$Create) {
     $paths = @{}
     foreach ($prop in $Cfg.services.PSObject.Properties) {
         if (-not $prop.Value.repo) { continue }
-        $base = if ($prop.Value.base) { $prop.Value.base } else { 'develop' }
-        $found = Get-WorktreePath $Cfg $B -Create:$Create -RepoRoot (Expand-HomePath $prop.Value.repo) -Folder "$(Get-SafeName $B)-$($prop.Name)" -Base $base
+        $repoRoot = Expand-HomePath $prop.Value.repo
+        $found = Get-WorktreePath $Cfg $B -RepoRoot $repoRoot -Optional
+        if (-not $found -and $Create) {
+            $base = if ($prop.Value.base) { $prop.Value.base } else { 'develop' }
+            $found = Get-BaseWorktree $Cfg $repoRoot $base
+            Write-Host "$($prop.Name): no worktree for '$B' in $(Split-Path $repoRoot -Leaf); running the shared '$base' worktree at $found"
+        }
         if ($found) { $paths[$prop.Name] = $found }
     }
     return $paths
@@ -169,7 +212,7 @@ function Get-ServiceWorktrees($Cfg, [string]$B, [switch]$Create) {
 function Get-ComposeArgs([string]$B) {
     $composeFile = Join-Path (Get-StateDir $B) 'compose.json'
     if (-not (Test-Path $composeFile)) { throw "No stack for '$B'. Run: wt up $B" }
-    $a = @('compose', '-p', (Get-ProjectName $B), '-f', $composeFile)
+    $a = @($script:DockerCtx) + @('compose', '-p', (Get-ProjectName $B), '-f', $composeFile)
     if (Test-Path $OverrideFile) { $a += @('-f', $OverrideFile) }
     return $a
 }
@@ -194,13 +237,25 @@ function Test-StackPort([string]$B, [int]$Port) {
     return ($LASTEXITCODE -eq 0)
 }
 
-function Test-Cdp([int]$Port) {
+function Test-Cdp([string]$B, [int]$Port) {
+    if ($script:DockerCtx.Count) { return (Test-StackPort $B 9222) }
     try { Invoke-RestMethod "http://127.0.0.1:$Port/json/version" -TimeoutSec 2 | Out-Null; return $true }
     catch { return $false }
 }
 
+function Invoke-Cdp([string]$B, [int]$Port, [string]$Method, [string]$Path) {
+    if ($script:DockerCtx.Count) {
+        $base = Get-ComposeArgs $B
+        $cmd = "exec 3<>/dev/tcp/127.0.0.1/9222; printf '$Method $Path HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3; cat <&3"
+        $raw = (& docker @base exec -T browser bash -c $cmd 2>$null) -join "`n"
+        $parts = $raw -split "`r?`n`r?`n", 2
+        return $(if ($parts.Count -gt 1) { $parts[1] } else { '' })
+    }
+    return (Invoke-WebRequest "http://127.0.0.1:$Port$Path" -Method $Method -UseBasicParsing).Content
+}
+
 function Repair-Ownership([string]$Path) {
-    if ($IsWindows -or -not $Path -or -not (Test-Path $Path)) { return }
+    if ($IsWindows -or $script:DockerCtx.Count -or -not $Path -or -not (Test-Path $Path)) { return }
     $uid = (id -u).Trim(); $gid = (id -g).Trim()
     & docker run --rm -v "${Path}:/src" alpine:3.20 chown -R "${uid}:${gid}" /src 2>$null | Out-Null
 }
@@ -247,7 +302,7 @@ function New-ComposeModel($Cfg, [int]$Slot, [string]$WtPath, [hashtable]$Extra =
 
         $mounts = @()
         $hostSource = if ($svc.repo) { $Extra[$name] } elseif ($svc.source) { Expand-HomePath $svc.source } else { $WtPath }
-        if ($mount) { $mounts += "${hostSource}:/src" }
+        if ($mount) { $mounts += "$(ConvertTo-DockerHostPath $hostSource):/src" }
         foreach ($v in @($svc.volumes)) {
             if (-not $v) { continue }
             $key = Get-VolumeKey $name $v
@@ -333,7 +388,7 @@ function Invoke-Up {
     $b = Resolve-Branch
     $wtPath = Get-WorktreePath $cfg $b -Create
     $slot = Get-Slot $cfg $b -Allocate
-    foreach ($v in (Get-CacheVolumes $cfg)) { docker volume create $v | Out-Null }
+    foreach ($v in (Get-CacheVolumes $cfg)) { & docker @($script:DockerCtx) volume create $v | Out-Null }
     $extra = Get-ServiceWorktrees $cfg $b -Create
     $ports = Write-StackFiles $cfg $b $slot $wtPath $extra
 
@@ -343,7 +398,7 @@ function Invoke-Up {
 
     Write-Host "`nWaiting for the browser..." -NoNewline
     $deadline = (Get-Date).AddSeconds(120)
-    while (-not (Test-Cdp $ports.Cdp) -and (Get-Date) -lt $deadline) { Start-Sleep 2; Write-Host '.' -NoNewline }
+    while (-not (Test-Cdp $b $ports.Cdp) -and (Get-Date) -lt $deadline) { Start-Sleep 2; Write-Host '.' -NoNewline }
     Write-Host ''
     Write-Host "Branch   : $b (slot $slot)"
     Write-Host "Worktree : $wtPath"
@@ -476,11 +531,11 @@ function Invoke-Reload {
     $b = Resolve-Branch
     $slot = Get-Slot $cfg $b
     if (-not $slot) { throw "No stack for '$b'. Run: wt up $b" }
-    $cdp = "http://127.0.0.1:$((Get-Ports $cfg $slot).Cdp)"
-    $stale = @((Invoke-WebRequest "$cdp/json/list" -UseBasicParsing).Content | ConvertFrom-Json | Where-Object type -eq 'page')
-    Invoke-RestMethod -Method Put -Uri "$cdp/json/new?$($cfg.browser.startUrl)" | Out-Null
+    $port = (Get-Ports $cfg $slot).Cdp
+    $stale = @((Invoke-Cdp $b $port 'GET' '/json/list') | ConvertFrom-Json | Where-Object type -eq 'page')
+    Invoke-Cdp $b $port 'PUT' "/json/new?$($cfg.browser.startUrl)" | Out-Null
     Start-Sleep 2
-    foreach ($tab in $stale) { Invoke-RestMethod "$cdp/json/close/$($tab.id)" | Out-Null }
+    foreach ($tab in $stale) { Invoke-Cdp $b $port 'GET' "/json/close/$($tab.id)" | Out-Null }
     Write-Host "Reloaded $($cfg.browser.startUrl) in slot $slot"
 }
 
