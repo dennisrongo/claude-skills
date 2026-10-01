@@ -435,6 +435,13 @@ function Invoke-Up {
     Write-Host "CDP      : http://127.0.0.1:$($ports.Cdp)"
     Write-Host 'Package restores can take a few minutes on first run. A service is up only when wt ls says so.'
 
+    if (-not $wasRunning) {
+        $wait = if ($cfg.browser.waitSeconds) { [int]$cfg.browser.waitSeconds } else { 120 }
+        Write-Host "Opening pages once their services answer (up to ${wait}s each)..."
+        $n = Open-BrowserTabs $cfg $b $ports.Cdp $wait
+        Write-Host "Opened $n page(s)."
+    }
+
     if ($cfg.hooks.afterUp -and -not $NoHook -and -not $wasRunning) {
         $env:WT_BRANCH   = $b
         $env:WT_SLOT     = "$slot"
@@ -568,12 +575,26 @@ function Invoke-Reload {
     $b = Resolve-Branch
     $slot = Get-Slot $cfg $b
     if (-not $slot) { throw "No stack for '$b'. Run: wt up $b" }
-    $port = (Get-Ports $cfg $slot).Cdp
-    $stale = @((Invoke-Cdp $b $port 'GET' '/json/list') | ConvertFrom-Json | Where-Object type -eq 'page')
-    Invoke-Cdp $b $port 'PUT' "/json/new?$($cfg.browser.startUrl)" | Out-Null
-    Start-Sleep 2
-    foreach ($tab in $stale) { Invoke-Cdp $b $port 'GET' "/json/close/$($tab.id)" | Out-Null }
-    Write-Host "Reloaded $($cfg.browser.startUrl) in slot $slot"
+    $opened = Open-BrowserTabs $cfg $b (Get-Ports $cfg $slot).Cdp 30
+    Write-Host "Reloaded $opened page(s) in slot $slot"
+}
+
+function Open-BrowserTabs($Cfg, [string]$B, [int]$Port, [int]$WaitSeconds) {
+    $urls = @($Cfg.browser.startUrl) + @($Cfg.browser.extraUrls) | Where-Object { $_ -match '^https?://' }
+    $stale = @((Invoke-Cdp $B $Port 'GET' '/json/list') | ConvertFrom-Json | Where-Object type -eq 'page')
+    $opened = 0
+    foreach ($u in $urls) {
+        $svcPort = ([uri]$u).Port
+        $deadline = (Get-Date).AddSeconds($WaitSeconds)
+        while (-not (Test-StackPort $B $svcPort) -and (Get-Date) -lt $deadline) { Start-Sleep 3 }
+        if (Test-StackPort $B $svcPort) { Invoke-Cdp $B $Port 'PUT' "/json/new?$u" | Out-Null; $opened++ }
+        else { Write-Warning "$u is not answering yet. When it is, run: wt reload $B" }
+    }
+    if ($opened -eq @($urls).Count) {
+        Start-Sleep 2
+        foreach ($tab in $stale) { Invoke-Cdp $B $Port 'GET' "/json/close/$($tab.id)" | Out-Null }
+    }
+    return $opened
 }
 
 function Show-Help {

@@ -48,6 +48,8 @@ Top level:
 | `base` | Branch a brand-new task branch starts from (after a fetch), e.g. `develop`. Without it, a new branch starts from whatever the main checkout has checked out. `wt up <base>` also fast-forwards that worktree to the latest `origin/<base>` and restarts the services that mount it. Task branches are never touched. |
 | `worktreeRoot` | Where `wt up` creates new worktrees, as `<repo>-wt-<branch without feature/>` siblings. With `docker.pathMap`, put it in the shared folder. |
 | `browser.startUrl` | Page the stack's Chromium opens, e.g. `http://localhost:3000/`. |
+| `browser.extraUrls` | Further pages to open next to `startUrl`, one tab each. Optional. |
+| `browser.waitSeconds` | How long `wt up` waits for each page's service to answer before opening it (default 120). A page that is still down is skipped with a warning; `wt reload` opens it later. |
 | `browser.flags` | Extra Chromium flags, space-separated, e.g. `--ignore-certificate-errors` for a self-signed dev certificate. |
 | `docker.context` | Run every Docker command against this Docker context, for a daemon on another machine (`docker context create <name> --docker host=ssh://<user>@<host>`). `wt` then runs where your git repos are. |
 | `docker.pathMap` | With `docker.context`: `{ "<path prefix on this machine>": "<same folder as the Docker host sees it>" }`, e.g. `{ "//Mac/Home/": "/Users/me/" }`. Bind sources are translated through it; a worktree outside every prefix is refused instead of mounting a path the daemon cannot see. |
