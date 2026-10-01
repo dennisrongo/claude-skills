@@ -149,6 +149,7 @@ function Get-Ports($Cfg, [int]$Slot) {
 
 function Get-WorktreePath($Cfg, [string]$B, [switch]$Create, [string]$RepoRoot, [string]$Folder, [string]$Base, [switch]$Optional) {
     if (-not $RepoRoot) { $RepoRoot = $Cfg.repoRoot }
+    if (-not $Base) { $Base = $Cfg.base }
     if (-not $Folder) { $Folder = "$(Split-Path $RepoRoot -Leaf)-wt-$(Get-BranchSlug $B)" }
     $path = $null
     foreach ($line in (git -C $RepoRoot worktree list --porcelain)) {
@@ -170,6 +171,7 @@ function Get-WorktreePath($Cfg, [string]$B, [switch]$Create, [string]$RepoRoot, 
         git -C $RepoRoot show-ref --verify --quiet "refs/remotes/origin/$B"
         if ($LASTEXITCODE -eq 0) { git -C $RepoRoot worktree add --track -b $B $target "origin/$B" | Out-Host }
         elseif ($Base) {
+            git -C $RepoRoot fetch -q origin $Base 2>$null
             git -C $RepoRoot show-ref --verify --quiet "refs/remotes/origin/$Base"
             $start = if ($LASTEXITCODE -eq 0) { "origin/$Base" } else { $Base }
             git -C $RepoRoot worktree add -b $B $target $start | Out-Host

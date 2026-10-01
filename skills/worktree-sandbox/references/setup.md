@@ -45,6 +45,7 @@ Top level:
 | Field | Meaning |
 |---|---|
 | `repoRoot` | Main checkout. `~` is expanded. |
+| `base` | Branch a brand-new task branch starts from (after a fetch), e.g. `develop`. Without it, a new branch starts from whatever the main checkout has checked out. |
 | `worktreeRoot` | Where `wt up` creates new worktrees, as `<repo>-wt-<branch without feature/>` siblings. With `docker.pathMap`, put it in the shared folder. |
 | `browser.startUrl` | Page the stack's Chromium opens, e.g. `http://localhost:3000/`. |
 | `browser.flags` | Extra Chromium flags, space-separated, e.g. `--ignore-certificate-errors` for a self-signed dev certificate. |
