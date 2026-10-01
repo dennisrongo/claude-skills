@@ -48,7 +48,7 @@ The branch argument defaults to the current worktree's branch.
 | Command | Does |
 |---|---|
 | `wt init` | Creates `~/.wt/config.json` from `assets/config.example.json`. Once per machine. |
-| `wt up <branch> [-NoBuild]` | Creates the worktree if missing, assigns a slot, starts the stack. |
+| `wt up <branch> [-NoBuild]` | Creates the worktree if missing (a new branch starts from the latest `base`), refreshes shared base worktrees, assigns a slot, starts the stack. |
 | `wt ls` | Every slot: each service's health, view and CDP URLs. |
 | `wt which` | Slot, ports, and URLs for the current worktree. |
 | `wt logs <branch> [-Service <name>\|browser] [-Follow]` | Container logs. |

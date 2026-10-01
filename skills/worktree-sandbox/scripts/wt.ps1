@@ -184,11 +184,17 @@ function Get-WorktreePath($Cfg, [string]$B, [switch]$Create, [string]$RepoRoot, 
 
 function Get-BaseWorktree($Cfg, [string]$RepoRoot, [string]$Base) {
     $target = Join-Path $Cfg.worktreeRoot "$(Split-Path $RepoRoot -Leaf)-wt-base"
-    if (Test-Path $target) { return $target }
-    New-Item -ItemType Directory -Force -Path $Cfg.worktreeRoot | Out-Null
     git -C $RepoRoot fetch -q origin $Base 2>$null
     git -C $RepoRoot show-ref --verify --quiet "refs/remotes/origin/$Base"
     $start = if ($LASTEXITCODE -eq 0) { "origin/$Base" } else { $Base }
+    if (Test-Path $target) {
+        $old = git -C $target rev-parse --short HEAD
+        git -C $target checkout -q -f --detach $start 2>&1 | Out-Null
+        $new = git -C $target rev-parse --short HEAD
+        if ($old -ne $new) { Write-Host "base worktree $(Split-Path $target -Leaf): $old -> $new (latest $start)" }
+        return $target
+    }
+    New-Item -ItemType Directory -Force -Path $Cfg.worktreeRoot | Out-Null
     git -C $RepoRoot worktree add --detach $target $start | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "git worktree add --detach failed for $Base in $RepoRoot" }
     return $target
@@ -389,6 +395,16 @@ function Invoke-Up {
     $cfg = Get-Config
     $b = Resolve-Branch
     $wtPath = Get-WorktreePath $cfg $b -Create
+    $wasRunning = @(Get-RunningServices $b).Count -gt 0
+    $mainMoved = $false
+    if ($cfg.base -and $b -eq $cfg.base) {
+        git -C $cfg.repoRoot fetch -q origin $cfg.base 2>$null
+        $old = git -C $wtPath rev-parse HEAD
+        git -C $wtPath merge --ff-only -q "origin/$($cfg.base)" 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) { Write-Warning "Could not fast-forward '$b' to origin/$($cfg.base) (local changes or divergence); running it as is." }
+        $mainMoved = ($old -ne (git -C $wtPath rev-parse HEAD))
+        if ($mainMoved) { Write-Host "worktree '$b' fast-forwarded to latest origin/$($cfg.base)" }
+    }
     $slot = Get-Slot $cfg $b -Allocate
     foreach ($v in (Get-CacheVolumes $cfg)) { & docker @($script:DockerCtx) volume create $v | Out-Null }
     $extra = Get-ServiceWorktrees $cfg $b -Create
@@ -397,6 +413,10 @@ function Invoke-Up {
     $upArgs = @('up', '-d', '--remove-orphans')
     if (-not $NoBuild) { $upArgs += '--build' }
     Invoke-Compose $b $upArgs
+    if ($mainMoved -and $wasRunning) {
+        $mounted = @($cfg.services.PSObject.Properties | Where-Object { -not $_.Value.repo -and -not $_.Value.source -and $_.Value.mount -ne $false } | ForEach-Object Name)
+        if ($mounted.Count) { Invoke-Compose $b (@('restart') + $mounted) }
+    }
 
     Write-Host "`nWaiting for the browser..." -NoNewline
     $deadline = (Get-Date).AddSeconds(120)

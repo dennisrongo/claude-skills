@@ -45,7 +45,7 @@ Top level:
 | Field | Meaning |
 |---|---|
 | `repoRoot` | Main checkout. `~` is expanded. |
-| `base` | Branch a brand-new task branch starts from (after a fetch), e.g. `develop`. Without it, a new branch starts from whatever the main checkout has checked out. |
+| `base` | Branch a brand-new task branch starts from (after a fetch), e.g. `develop`. Without it, a new branch starts from whatever the main checkout has checked out. `wt up <base>` also fast-forwards that worktree to the latest `origin/<base>` and restarts the services that mount it. Task branches are never touched. |
 | `worktreeRoot` | Where `wt up` creates new worktrees, as `<repo>-wt-<branch without feature/>` siblings. With `docker.pathMap`, put it in the shared folder. |
 | `browser.startUrl` | Page the stack's Chromium opens, e.g. `http://localhost:3000/`. |
 | `browser.flags` | Extra Chromium flags, space-separated, e.g. `--ignore-certificate-errors` for a self-signed dev certificate. |
@@ -66,7 +66,7 @@ Per service:
 | `env` | Environment variables. |
 | `mount` | `false` to not mount the worktree (databases, caches). Default `true` at `/src`. |
 | `repo` | Path to the main checkout of a different repo that holds this service. `wt up <branch>` mounts that repo's worktree for the same branch at `/src` when one exists (create it yourself with `git worktree add`). Without one, the service runs a shared detached worktree of `base`; `wt` never creates branches in this repo. |
-| `base` | With `repo`: the branch the shared fallback worktree is detached at (`<repo>-wt-base`, created once). Default `develop`. |
+| `base` | With `repo`: the branch the shared fallback worktree is detached at (`<repo>-wt-base`). Every `wt up` moves it to the latest `origin/<base>` and discards local changes in it, so treat it as disposable. Default `develop`. |
 | `source` | Absolute path on the Docker host to mount at `/src` instead of the worktree, for a service that lives in a different repo. It is one shared checkout, not per-slot: every stack sees the same files and branch. Use `repo` for isolation. |
 | `volumes` | Paths kept in a per-stack Docker volume instead of the worktree — relative to `workdir` (`node_modules`, `bin`, `.venv`) or absolute (`/var/lib/postgresql/data`). |
 | `caches` | Named caches shared by **all** stacks, `{ "<name>": "<path in container>" }` — package caches such as `/root/.npm` or `/root/.cache/pip`. |
