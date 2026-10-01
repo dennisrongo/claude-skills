@@ -141,3 +141,4 @@ Not run: <checks skipped, or "none">
 | `No free slots` | Ask the user which stopped branch to `wt down -Purge`. Never pick one yourself. |
 | Worktree files owned by root | `wt chown` (also runs on `wt down`). |
 | Live view blank | Chromium restarts on its own; check `wt logs -Service browser`. |
+| macOS over SSH: `keychain cannot be accessed ... does not allow user interaction` on pull | Docker's credential helper needs the login keychain, which an SSH session can't unlock. Run the first `wt up` from a terminal on the Mac itself so images are pulled and built there; `wt ls`, `which`, `logs` and `down` need no pull and worked over SSH. |
