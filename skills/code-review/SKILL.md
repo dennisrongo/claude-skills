@@ -332,4 +332,4 @@ End with the offer. Wait for the user's choice. Apply only the approved set, the
   - a release or feature about to go out → [`ship-it`](../ship-it/SKILL.md) for operational readiness
 - This skill judges the change; `regression-hunt` (if installed) traces what the change breaks in code that didn't change. On a diff that renames, changes a default, or touches shared state, suggest running both.
 - If tests take a long time, run them in the background and continue the static review while they run; reconcile the report once results land.
-- This skill composes with [`conventional-commits`](../conventional-commits/SKILL.md): after fixes are approved and applied, hand the commit-message authoring to that skill rather than improvising one here.
+- This skill composes with [`conventional-commits`](../conventional-commits/SKILL.md): after fixes are approved and applied, hand the commit message authoring to that skill rather than improvising one here.

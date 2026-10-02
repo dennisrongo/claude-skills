@@ -46,7 +46,7 @@ State in one line: work item/ticket id, branch name, and every repo the change t
 Detect from `git remote get-url origin` output you ran this session — the remote decides, not the tooling installed (`gh` being on PATH doesn't make this a GitHub repo).
 
 - **GitHub** (`github.com`): follow the [`github`](../github/SKILL.md) skill — house defaults from `.claude/github.json` (target branch, title pattern, reviewers, auto-merge, issue link via closing keyword).
-- **Any other host** (GitLab, Bitbucket, Azure DevOps, on-prem servers): STOP and ask the user which provider tooling to use. Do not guess a CLI or improvise raw API calls past this gate.
+- **Any other host** (GitLab, Bitbucket, Azure DevOps, on-prem servers): if an organisation provider skill for that host is installed (check the session's skill list), use it for the create and verify mechanics — the review gate, publish approval and post-creation verification in this skill still apply unchanged. With no such skill, STOP and ask the user which provider tooling to use. Do not guess a CLI or improvise raw API calls past this gate.
 - PR description template — intent, not a diff restatement. Copy-paste and fill the `<placeholders>`:
 
 ```markdown

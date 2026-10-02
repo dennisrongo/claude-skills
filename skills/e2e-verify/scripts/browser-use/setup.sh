@@ -4,7 +4,7 @@
 # and writes activation helper + config files.
 #
 # Usage:
-#   bash skills/browser-use-web-test/scripts/setup.sh
+#   bash skills/e2e-verify/scripts/browser-use/setup.sh
 #
 # Works on: macOS, Linux, Windows (git-bash / MSYS2)
 # After running, activate with:

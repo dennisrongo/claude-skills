@@ -1,26 +1,24 @@
 ---
 name: conventional-commits
-description: Write git commit messages following the Conventional Commits specification, with an automatic ticket number pulled from the current branch and a project tag (API / CLIENT / CONSOLE / DB) when the project type can be detected from the diff. Use this skill whenever the user asks to write a commit message, asks for help committing changes, or runs `git commit` — even if they don't explicitly say "conventional commits". Do NOT use when the project's CLAUDE.md, CONTRIBUTING.md, or commit template defines a different commit format — the project convention always wins over this skill. Do NOT use for PR descriptions, release notes, or changelog entries — write those directly.
+description: Write git commit messages following the Conventional Commits specification, with the type taken from the staged diff and the ticket carried as a `Refs:` footer when the branch name has one. Use this skill whenever the user asks to write a commit message, asks for help committing changes, or runs `git commit` — even if they don't explicitly say "conventional commits". Do NOT use when an organisation commit skill is installed, or when the project's CLAUDE.md, CONTRIBUTING.md, or commit template defines a different commit format — that convention always wins over this skill. Do NOT use for PR descriptions, release notes, or changelog entries — write those directly.
 ---
 
 # Conventional Commits
 
-Write commit messages that follow the [Conventional Commits](https://www.conventionalcommits.org/) spec, prefixed with the ticket number (from the current branch) and the project tag (`API` / `CLIENT` / `CONSOLE` / `DB`) when those can be determined.
+Write commit messages that follow the [Conventional Commits](https://www.conventionalcommits.org/) spec. This is the generic default: where an organisation commit skill is installed, or the repo's own docs define a house subject format, that format wins and this skill stays out of the way.
 
 ## Format
 
 ```
-[#<ticket>] [(<PROJECT>)] <type>[(<scope>)][!]: <description>
+<type>[(<scope>)][!]: <description>
 
 [optional body]
 
 [optional footer(s)]
 ```
 
-Bracketed segments are included only when they apply (see [Branch & project context](#branch--project-context)). A fully-tagged example:
-
 ```
-#12345 (CLIENT) fix: prevent modal z-index regression on settings page
+fix: prevent modal z-index regression on settings page
 ```
 
 ## Types
@@ -37,49 +35,26 @@ Bracketed segments are included only when they apply (see [Branch & project cont
 - **chore** — other changes that don't modify src or test files
 - **revert** — reverts a previous commit
 
-## Branch & project context
-
-Before composing the message, gather two pieces of context from the repo.
-
-### Ticket number (from current branch)
+## Ticket reference (from the current branch)
 
 1. Run `git rev-parse --abbrev-ref HEAD` to get the current branch name.
 2. Take the last `/`-separated segment of the branch (so `feature/12345-fix_this_bug` becomes `12345-fix_this_bug`).
-3. If that segment starts with one or more digits followed by `-`, `_`, or end-of-string, those leading digits are the ticket number.
-4. If no leading numeric ID is found, **omit `#<ticket>` from the message entirely** — do not invent one, do not guess one from conversation context, do not reuse a stale number mentioned earlier in the session, and do not prompt the user for it. The branch name is the only source of truth for the ticket.
+3. If that segment starts with one or more digits followed by `-`, `_`, or end-of-string, those leading digits are the ticket number. Carry it as a `Refs: #<ticket>` footer.
+4. If no leading numeric ID is found, **omit the footer entirely** — do not invent one, do not guess one from conversation context, do not reuse a stale number mentioned earlier in the session, and do not prompt the user for it. The branch name is the only source of truth for the ticket.
 
-Examples:
-
-| Branch                          | Extracted ticket |
+| Branch                          | Footer           |
 |---------------------------------|------------------|
-| `feature/12345-fix_this_bug`    | `12345`          |
-| `12345-fix_this_bug`            | `12345`          |
-| `bugfix/9-typo`                 | `9`              |
-| `main`, `release/v2`, `feature/redesign` | (none — omit `#`) |
-
-### Project tag
-
-Pick ONE of `API`, `CLIENT`, `CONSOLE`, or `DB` based on what was actually changed in the diff:
-
-- **API** — backend services, REST / GraphQL endpoints, server-side handlers. Signals: paths like `api/`, `server/`, `backend/`, `services/api/`, `apps/api/`; server framework code (Express, NestJS, FastAPI, Django, Rails, Spring); OpenAPI specs.
-- **CLIENT** — user-facing frontend. Signals: paths like `client/`, `web/`, `frontend/`, `apps/web/`, `apps/client/`, `ui/`; `.tsx` / `.jsx` / `.vue` / `.svelte`; React / Vue / Angular / Svelte component files; user-facing CSS / Tailwind / design assets.
-- **CONSOLE** — .NET console applications (CLIs, worker services, background tools). Signals: `.csproj` files with `<OutputType>Exe</OutputType>` or `Sdk="Microsoft.NET.Sdk"` (and NOT `Microsoft.NET.Sdk.Web`); `Program.cs` without ASP.NET / web-host bootstrap; `Microsoft.Extensions.Hosting` worker or `BackgroundService` usage; CLI libraries like `System.CommandLine`, `Spectre.Console`, `CommandLineParser`, `McMaster.Extensions.CommandLineUtils`; project names ending in `.Console`, `.Cli`, `.Worker`, or `.Tool`; paths like `console/`, `apps/console/`, `tools/`, `cli/`.
-- **DB** — database schema, migrations, seeds, ORM models. Signals: paths like `db/`, `migrations/`, `prisma/`, `schema.prisma`, SQL files, `alembic/`, `knex/`, model-only changes.
-
-How to decide:
-
-1. Run `git diff --cached --name-only` (fall back to `git diff --name-only` if nothing is staged).
-2. Match the changed paths against the signals above. If all changed files cluster under one bucket, use that tag.
-3. If the diff genuinely spans multiple buckets, pick the dominant one (most files or largest change) and mention the secondary in the body.
-4. If none of the four buckets fit the repo (e.g., a library, a docs-only repo, a meta-tooling project), **omit `(PROJECT)`** — same fallback rule as the missing ticket.
-5. If two buckets are plausibly equal and you can't break the tie from the diff, ask the user which one applies. Do not guess silently.
+| `feature/12345-fix_this_bug`    | `Refs: #12345`   |
+| `12345-fix_this_bug`            | `Refs: #12345`   |
+| `bugfix/9-typo`                 | `Refs: #9`       |
+| `main`, `release/v2`, `feature/redesign` | (none — omit) |
 
 ## Rules
 
-1. Description must be lowercase, present tense ("add" not "added"), and under 72 characters. The `#12345 (CLIENT)` prefix counts toward the 72-char header budget — keep the description tight.
+1. Description must be lowercase, present tense ("add" not "added"), and under 72 characters including the `<type>(<scope>)!: ` prefix — keep it tight.
 2. No period at the end of the description.
-3. Breaking changes get a `!` after the type / scope (e.g., `#12345 (API) feat!: drop support for Node 16`) and a `BREAKING CHANGE:` footer.
-4. Inner `type(scope)` is optional and usually redundant once `(PROJECT)` is present. Only use it when it adds real specificity beyond the project tag (e.g., `#12345 (API) fix(auth): ...` when "auth" narrows further than "API").
+3. Breaking changes get a `!` after the type / scope (e.g., `feat(api)!: drop support for Node 16`) and a `BREAKING CHANGE:` footer.
+4. `(scope)` is optional. Use it only when it adds real specificity (e.g., `fix(auth): ...`), never as filler.
 5. Body explains the *why*, not the *what*. Wrap at 72 chars.
 6. The description states **what changed** at the level a reader scanning a changelog needs; the *why* goes in the body. A description that only restates the type ("fix bug") carries no information — rewrite it.
    - ❌ `fix: fix bug in login`
@@ -93,38 +68,30 @@ How to decide:
 
 When the user asks for a commit message:
 
-0. Check for commit-lint tooling: `.commitlintrc*`, `commitlint.config.*`, `semantic-release` in package.json, or a `.husky/commit-msg` hook. If any exists, the `#<ticket>` / `(<PROJECT>)` prefixes will fail parsing — start the header with `<type>` and carry the ticket as a `Refs: #<ticket>` footer instead. Prevents: commits rejected by the repo's own hooks.
+0. Check for a house format before anything else: an installed organisation commit skill, or a format defined in the repo's CLAUDE.md, CONTRIBUTING.md or commit template. If one exists, use it and stop here. Then check for commit-lint tooling (`.commitlintrc*`, `commitlint.config.*`, `semantic-release` in package.json, a `.husky/commit-msg` hook): if present, read its config and conform to its allowed types, scopes and header length. Prevents: commits rejected by the repo's own hooks.
 1. Get the current branch with `git rev-parse --abbrev-ref HEAD` and extract the ticket number per the rules above.
 2. Inspect the staged diff: `git diff --cached` (or `git diff` if nothing is staged). If both `git diff --cached` and `git diff` come back empty, STOP and tell the user there is nothing to commit (run `git status --short` to check for untracked files and name them). Never compose a message from conversation memory — a diff you did not read this session does not exist. Prevents: commit messages describing work that was never staged.
-3. From the changed file paths, determine the project tag — or decide to omit it.
-4. Categorize the change into one of the types — based on the diff you just read, not on how the user described the work.
-5. Write a concise description.
-6. Add a body when ANY of the following is true; otherwise omit it: (a) the diff changes more than one file; (b) the diff changes more than ~20 lines; (c) the header carries `!` or a `BREAKING CHANGE:` footer; (d) step 3 picked a dominant bucket and the secondary bucket must be mentioned (per "How to decide" item 3). The body states the *why*, wrapped at 72 chars (Rule 5).
-7. Flag breaking changes explicitly.
-8. Assemble the header as `[#<ticket>] [(<PROJECT>)] <type>[(<scope>)][!]: <description>`, including only the segments that apply.
-9. Self-check before presenting — verify all four, don't eyeball them:
+3. Categorize the change into one of the types — based on the diff you just read, not on how the user described the work.
+4. Write a concise description.
+5. Add a body when ANY of the following is true; otherwise omit it: (a) the diff changes more than one file; (b) the diff changes more than ~20 lines; (c) the header carries `!` or a `BREAKING CHANGE:` footer. The body states the *why*, wrapped at 72 chars (Rule 5).
+6. Flag breaking changes explicitly.
+7. Assemble the header as `<type>[(<scope>)][!]: <description>`, then the body, then the footers (`Refs:`, `BREAKING CHANGE:`).
+8. Self-check before presenting — verify all three, don't eyeball them:
    - (a) header character count ≤ 72 — count it, don't eyeball it;
-   - (b) the ticket appears verbatim in the branch name you printed this session, or `#` is omitted;
-   - (c) you can point at the specific diff hunk that justifies the type;
-   - (d) the project tag is justified by changed file paths you listed, or is omitted.
-10. Present the assembled message to the user and stop. When presenting, state the basis in one line — e.g. `ticket 12345 from branch feature/12345-x (verified); tag API from 4 files under services/api/ (verified)`. A branch or diff you did not observe this session is "not read", never "known".
+   - (b) the `Refs:` ticket appears verbatim in the branch name you printed this session, or the footer is omitted;
+   - (c) you can point at the specific diff hunk that justifies the type.
+9. Present the assembled message to the user and stop. When presenting, state the basis in one line — e.g. `type feat from the new export endpoint in src/api/export.ts (verified); ticket 12345 from branch feature/12345-x (verified)`. A branch or diff you did not observe this session is "not read", never "known".
 
 ## Examples
 
 ```
-#12345 (CLIENT) fix: prevent modal z-index regression on settings page
+fix: prevent modal z-index regression on settings page
 
-#12345 (API) feat(auth): add OAuth2 PKCE flow for mobile clients
+feat(auth): add OAuth2 PKCE flow for mobile clients
 
-#987 (DB) chore: add index on users.created_at for analytics query
+Refs: #12345
 
-#42 (CONSOLE) feat: add bulk-export command to the billing worker
-
-(API) refactor: extract token validator into shared middleware
-# ^ branch had no ticket — `#` omitted
-
-#7 fix: correct off-by-one in pagination cursor
-# ^ repo doesn't fit API / CLIENT / CONSOLE / DB — `(PROJECT)` omitted
+chore: add index on users.created_at for analytics query
 
 fix: prevent race condition in cache invalidation
 
@@ -132,9 +99,8 @@ The previous implementation could double-invalidate when two requests
 arrived within the lock window. Use a single atomic CAS.
 
 Fixes #482
-# ^ no ticket in branch, no project bucket fits — both prefixes omitted
 
-#1024 (API) refactor!: rename `user.email` column to `user.email_address`
+refactor(db)!: rename `user.email` column to `user.email_address`
 
 BREAKING CHANGE: clients reading `user.email` must update to `user.email_address`.
 ```
@@ -144,9 +110,9 @@ BREAKING CHANGE: clients reading `user.email` must update to `user.email_address
 - ❌ `update stuff` (no type, vague)
 - ❌ `Fix: Bug in login page.` (capitalized, trailing period)
 - ❌ `feat: added the ability to export CSV files` (past tense)
-- ❌ `#12345 (CLIENT) feat: added export.` (past tense + trailing period)
+- ❌ `feat: added export.` (past tense + trailing period)
 - ❌ Inventing a ticket number when the branch doesn't have one — or guessing one from conversation context
 - ❌ `fix: quick fix per request` when the staged diff adds a new endpoint (type from the user's phrasing, not the diff — should be `feat`)
 - ❌ `chore: various updates` covering two unrelated changes — flag the split instead
-- ❌ Forcing a `(PROJECT)` tag when the diff doesn't actually map to API / CLIENT / CONSOLE / DB
-- ✅ `#12345 (CLIENT) feat: add CSV export`
+- ❌ Adding a ticket or area prefix in front of the type when the repo has no such convention
+- ✅ `feat: add CSV export`
