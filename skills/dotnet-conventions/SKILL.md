@@ -1,11 +1,11 @@
 ---
 name: dotnet-conventions
-description: Keeps changes to existing C# and .NET code correct and in scope - the new code copies the surrounding structure but never its defects, carries CancellationToken through async paths, and never swallows exceptions. Use this skill whenever the user says "fix this C# bug", "fix this .NET issue", "add an endpoint", "add a service", "add a repository", "review this C# diff", "review my .cs changes", or mentions "EF Core migration", "async", "dependency injection" or a background worker - even if they don't explicitly say "conventions". Not for creating a new solution from scratch (that is dotnet-onion-api).
+description: Writes new C# and .NET code to current best practice for the project's target framework while leaving existing code untouched - neighbours set structure and naming, never quality. Use this skill whenever the user says "fix this C# bug", "fix this .NET issue", "add an endpoint", "add a service", "add a repository", "review this C# diff", "review my .cs changes", or mentions "EF Core migration", "async", "dependency injection" or a background worker - even if they don't explicitly say "conventions". Not for creating a new solution from scratch (that is dotnet-onion-api).
 ---
 
 # .NET Conventions
 
-Rules for editing existing C# and .NET code so the new code is correct and in scope, whatever state the surrounding code is in.
+New code follows current best practice for the project's target framework, taken from Microsoft's own guidance. Existing code sets the structure (layering, naming, folder layout, data-access technology) and is never edited to meet this rule.
 
 ## When to use this skill
 
@@ -18,72 +18,42 @@ Do **not** use it to create a new solution or project from scratch - `dotnet-oni
 
 ## Workflow
 
-1. **Detect the stack from files, then state it in one line.** Read the `.csproj` target (`net472`/`net48` = .NET Framework; `net6.0` or later = modern .NET), the data-access path (EF Core, EF6, Dapper, ADO.NET, stored procedures), whether dependencies are injected or `new`-ed, and whether neighbouring methods are sync or async. A stack you did not read from a file is "assumed", never "detected".
-2. **Copy structure, not defects.** Follow the neighbouring code's layering, naming, data-access path and sync/async style. Never copy anything on the Defect list, even when the method next door does it.
+1. **Detect the stack from files, then state it in one line:** the `.csproj` target (`net472`/`net48` = .NET Framework; `net6.0` or later = modern .NET), `LangVersion`, the data-access path, whether dependencies are injected, whether neighbours are sync or async, and whether a test project exists. A stack you did not read from a file is "assumed", never "detected".
+2. **Use only what the target supports.** Never raise `TargetFramework` or `LangVersion`, add a package, or switch a library (serializer, ORM, test framework).
+3. **Write new code to best practice; match the neighbours' structure and naming, not their quality.** Read the reference for each area your change touches:
+   - `references/async-and-cancellation.md` - I/O, blocking, `CancellationToken`, `ConfigureAwait`
+   - `references/errors.md` - catch, throw, rethrow, logging exceptions
+   - `references/di-and-settings.md` - injection, lifetimes, options, hosted services
+   - `references/data-and-http.md` - EF Core, SQL, `HttpClient`, serialization
+   - `references/aspnet-request-scope.md` - `HttpContext`, request bodies, large results, background work
+   - `references/security.md` - queries, authorization, input, secrets
+   - `references/style-and-layout.md` - names, member order, namespaces, new files and folders, syntax forms
+   - `references/dotnet-framework.md` - also read this when the target is .NET Framework (`net4x`): async policy, EF6, Web API 2 DI, `HttpClient`, language limits
    - ❌ New `ListActive` ends in `catch (Exception) { }` and returns an empty list "to match `Find`".
-   - ✅ New method lets the exception propagate, like `Get` beside it; the report flags `Find` in one line.
-3. **Do exactly what was asked.** No new public surface (endpoint, controller, public interface) unless the task names it. "So other code can read it" means an internal interface, not an HTTP route.
-   - ❌ "Keep the latest values in memory so other code can read them" becomes a new public controller.
-   - ✅ An internal reader interface; the report offers an endpoint as a suggestion.
-4. **Apply the Defect list and the Cancellation rules below** to every line you add.
-5. **Self-audit the added lines**, then verify with the project's own build and the Tests rules below. Quote the summary line. A project you cannot build here is `not built`, never `passed`.
-6. **Report with the six slots below.** Every slot is required; write `none` rather than omitting one.
+   - ✅ New method lets the exception propagate, like `Get` beside it; the report flags `Find`.
+4. **Leave existing code alone.** Never edit an existing method to make it best practice. When new code needs a better form of something that exists only in a worse form, add a sibling beside it. The one permitted edit: an optional `CancellationToken ct = default` parameter on an existing async method your new code calls (it breaks no caller), listed under `Changed`.
+   - ❌ `Get` changed from sync to `async` so the new code can await it.
+   - ✅ `GetAsync(id, ct)` added beside `Get`; `Get` and its callers are unchanged.
+5. **If best practice is out of reach without editing existing code,** follow the neighbour for that one point and record it under `Deviations`.
+6. **Do exactly what was asked.** No new public surface (endpoint, controller, public interface) unless the task names it. Style follows `.editorconfig` and the neighbouring files. If the code needs no comment, add none. A comment is for a genuinely non-obvious *why* only, and is one short line (see `references/style-and-layout.md`).
+7. **Verify** with the build and tests below, then report.
 
-```
-Stack: <what you read, from which file>
-Changed: <files>
-Verified: <command + quoted summary line, or "not built: <why>">
-Tests: <name of each new test and the filter you ran with, or "none: no test project">
-Cancellation: <for each new async method, the line that forwards `ct`, copied from the file; `n/a` only for a .NET Framework target or a method that does no I/O>
-Flagged, not changed: <one line per defect you saw and left alone>
-```
+## Verify
 
-## Defect list
+From the repository root, audit the lines you added. Fix every real hit and rerun.
 
-In code you write: never. In code you only touch or pass through: leave it, and name it in one line in the report. Never fix it in the same change.
-
-- A `catch` that swallows - empty, or returning null/default/an empty list on any error. The one exception: `catch (OperationCanceledException) { }` on a shutdown path you wrote.
-- Reusing an existing method that swallows. Before calling an existing method from new code, read its body. If it swallows, call the layer below it directly so the new path does not inherit the masked failure, and flag that method in the report.
-  - ❌ `GetDetailsAsync` calls the service's own `GetAsync`, whose `catch { return null; }` turns a repository failure into a 404.
-  - ✅ `GetDetailsAsync` calls `_repo.GetAsync(id, ct)` directly; the report flags `GetAsync`.
-- SQL built by string concatenation or interpolation (pass parameters).
-- Commented-out code, and new comments that restate the next line.
-- `Thread.Sleep`, `.Result`, `.Wait()` or `async void` in new code.
-
-## Cancellation (modern .NET only)
-
-Do not add async or tokens to a .NET Framework sync stack - match the sync style there.
-
-- Every new async method that does I/O takes `CancellationToken ct` as its last parameter and forwards it to every call that accepts one. Controller actions take `CancellationToken ct`.
-- If a method on your call path takes none, add `CancellationToken ct = default` to it (optional, so no caller breaks) and list those signatures under `Changed`. A token your new method accepts but never forwards is a defect. Touch only the methods your new code actually calls, not their siblings.
-  - ❌ `ct` added to `Get`, `List` and `ListAsync` (and to a commented-out line) when the new code only calls `GetAsync`.
-  - ✅ `ct = default` on `GetAsync` alone, interface and implementation, listed under `Changed`.
-- Worker loops run `while (!stoppingToken.IsCancellationRequested)`. Catch and log a failed iteration, and let shutdown through:
-
-```csharp
-catch (Exception ex) when (ex is not OperationCanceledException)
-{
-    _logger.LogWarning(ex, "Refresh failed; keeping the previous value");
-}
+```bash
+bash <this skill's directory>/scripts/audit.sh
 ```
 
-- ❌ `catch (Exception ex)` around an awaited call - shutdown is logged as an error and swallowed.
-- ✅ The `when` filter above - failures are logged, cancellation propagates.
+It lists added `catch` blocks, blocking calls, `async void` and async methods with no `CancellationToken` (test code is ignored), in modified files and in new untracked ones. For each changed file it finds the nearest `.csproj`; on an SDK-style project targeting `net5.0` or later it builds with the analyzers on and reports only `CA1849` (blocking in async), `CA2016` (token not forwarded), `CA1031` (general catch), `CA2200` (`throw ex`) and `CA2000` (not disposed), and only on lines you added. It says why it skipped a project, for example a .NET Framework target. Every added `catch` must log or rethrow; a no-token hit is expected on .NET Framework and a defect on modern .NET.
 
-## Background work and settings (modern .NET)
-
-- A periodic job derives from `BackgroundService` and is registered with `AddHostedService<T>()`. Do not hand-write `StartAsync`/`StopAsync` plumbing or start work from `Program.cs`.
-- Outbound HTTP goes through `IHttpClientFactory` or a typed client. Never build a new `HttpClient` inside a method that runs repeatedly.
-- Settings the job needs are bound to an options class with `AddOptions<T>().Bind(...)` and injected as `IOptions<T>`. Do not read `IConfiguration` ad hoc, and do not put a literal URL or interval in code as a fallback.
-  - ❌ `configuration["Job:ApiUrl"] ?? "https://api.example.invalid/latest"`
-  - ✅ `IOptions<JobOptions>` with the URL in `appsettings.json`, validated on start.
+Then build and run the tests. A project you cannot build here is `not built`, never `passed`; quote the summary line.
 
 ## Tests
 
-- If a test project exists, add tests for the behavior you add, in that project's own framework and style: copy the sibling tests' naming, fakes and layout. No new package, no new mocking library. Cover the happy path with the computed values asserted, and the not-found or failure path. A test that only asserts `NotNull` proves nothing.
-  - ❌ Behavior added, test project present, no test added: "quick one".
-  - ✅ `GetDetailsAsync_ExistingId_ReturnsDetails` and `GetDetailsAsync_UnknownId_ReturnsNull`, written like the existing `GetAsync_*` tests.
-- Run unit tests only. A test that needs a database or an external service runs only when the user asks. Find how the project tags such tests and exclude them with the matching filter:
+- If a test project exists, add tests for the behavior you add, in its own framework and style: sibling naming, fakes and layout, no new package. Assert computed values on the happy path and cover the not-found or failure path.
+- Run unit tests only. A test that needs a database or an external service runs only when the user asks. Exclude it with the filter that matches the project's tag:
 
 | Framework | Tag | Filter |
 |---|---|---|
@@ -91,44 +61,31 @@ catch (Exception ex) when (ex is not OperationCanceledException)
 | NUnit | `[Category("Integration")]` | `--filter "TestCategory!=Integration"` |
 | MSTest | `[TestCategory("Integration")]` | `--filter "TestCategory!=Integration"` |
 
-- Check the filter worked: count the non-integration tests in the source, and the `Passed` total must equal that count. A larger total means an integration test ran - say so in the report; do not call the run clean.
-  - ❌ `--filter "TestCategory!=Integration"` on an xUnit project: the tag is a `Category` trait, so the integration test still runs and the total is one too high.
-  - ✅ `--filter "Category!=Integration"` on xUnit, and `Passed: 5` for 3 existing + 2 new unit tests.
+- The `Passed` total must equal the count of non-integration tests in the source. A larger total means an integration test ran - say so.
 
-## Self-audit (added lines only)
+## Report
 
-```bash
-git diff -U0 | grep '^+' | grep -n 'catch'
-git diff -U0 | grep '^+' | grep -nE 'Thread\.Sleep|\.Result\b|\.Wait\(\)|async void'
-git diff -U0 | grep '^+' | grep -nE 'async Task'
+Five slots, every one required; write `none` rather than omitting one.
+
+```
+Stack: <what you read, from which file>
+Changed: <files, including each sibling or optional parameter you added>
+Verified: <command + quoted summary line + names of new tests, or "not built: <why>">
+Deviations: <each place the new code is not best practice, and why>
+Flagged, not changed: <one line per defect you saw in existing code and left alone>
 ```
 
-Every added `catch` is listed and each one logs or rethrows. Every added `async Task` signature carries a `CancellationToken` (modern .NET), and that token is passed on inside the method body - grep the parameter name; a token that appears only in the signature is a defect. Any other hit is fixed and the audit re-run; a hit is never reported as acceptable.
+## Example
 
-## Examples
+**User:** "Add an endpoint that returns details for an item." The repository, service and controller are sync, and the repository reads a file with `File.ReadAllText`.
 
-### Example: add a method to a sync .NET Framework service
-
-**User:** "Add an endpoint that lists active items for a group. Follow how the rest of the code does it."
-
-**Claude:**
-- Stack: `net472`, sync, stored procedures through the repo's data helper (read from the `.csproj` and the repository class).
-- Adds controller action, service method and repository method through the existing helper, synchronous, no new package.
-- The repository's `Find` swallows every error; the new method does not copy that.
-- Report: `Verified: not built: .NET Framework project, no build on this machine`; `Flagged, not changed: ItemRepository.Find swallows all exceptions`.
+**Claude:** modern .NET with sync neighbours doing blocking I/O. Adds `GetAsync(id, ct)` beside `Get`, `GetDetailsAsync(id, ct)` in the service and an async action taking `ct`; `Get` and every caller are unchanged. The service's `Find` swallows every error, so the new path does not go through it. Report: `Deviations: none`; `Flagged, not changed: ItemRepository.Get blocks on file I/O; ItemService.Find swallows all exceptions`.
 
 ## Anti-patterns
 
 | Excuse | Reality |
 |---|---|
-| "It matches the surrounding code" | Match structure, never defects. |
-| "Quick one" | Quick limits scope, not the self-audit or the test. |
-| "The existing async methods carry no token" | Then they are the defect, and new code does not copy it. On modern .NET your new methods carry `ct`; add `ct = default` to the call path. |
-| "The repository method takes no token, so there is nothing to forward" | That is the case the rule exists for: add `ct = default` to that method and forward it. A token accepted and never forwarded is a defect. |
-| "Fixing it would change existing behaviour" | True - so flag it; do not copy it and do not fix it here. |
-| "Other code can read it" | An internal interface, not a route. |
-
-- ❌ Adding `async` and tokens to a sync .NET Framework stack because modern guidance says so.
-- ❌ Fixing the neighbour's empty `catch` in the same change - that is scope creep; flag it.
-- ❌ Reporting "builds" without a quoted summary line.
-- ✅ Detect the stack, copy the structure, leave the defects named but untouched.
+| "It matches the surrounding code" | Match structure and naming, never quality. |
+| "The neighbours are sync / carry no token" | New code on modern .NET is async with `ct`; add a sibling, do not edit the old method. |
+| "Quick one" | Quick limits scope, not the verification or the test. |
+| "Fixing it would change existing behaviour" | True - flag it; do not copy it and do not fix it here. |
