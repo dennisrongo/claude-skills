@@ -102,7 +102,12 @@ dev certificate via the override file and configure the server to use it; set
 `"browser.flags": "--ignore-certificate-errors"` in the config for a self-signed cert.
 
 **File ownership.** Containers run as root, so files they write into the worktree (build output,
-lockfiles) are root-owned on Linux and WSL. `wt down` and `wt chown` give them back to you.
+lockfiles) are root-owned on Linux and WSL. `wt down` and `wt chown` give them back to you. With
+`docker.context` set, `wt chown` does nothing (the files live on another machine), so
+`git worktree remove` can fail with `Permission denied` on the shared folder. Git has already
+unregistered the worktree at that point; delete just that folder through a container, for
+example `docker --context <name> run --rm -v <host path to the folder's parent>:/w <pulled image> sh -c "rm -rf /w/<folder>"`.
+Name the folder; never pass the share root.
 
 **Docker on another machine (e.g. a VM whose host runs the containers).** Keep git on the machine
 with the repos, share a folder so the Docker host sees the worktrees, and set `docker.context` plus
