@@ -1,0 +1,3 @@
+{
+  "keep": ["plugin:example-plugin@example-market", "skill:example-skill"]
+}

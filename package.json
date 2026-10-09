@@ -13,7 +13,7 @@
     "README.md"
   ],
   "scripts": {
-    "test": "node --test test/cli.test.js test/skills.test.js test/draw-options.test.js",
+    "test": "node --test test/cli.test.js test/skills.test.js test/draw-options.test.js test/context-diet.test.js",
     "prepublishOnly": "npm test"
   },
   "keywords": [
