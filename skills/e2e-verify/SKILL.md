@@ -1,6 +1,6 @@
 ---
 name: e2e-verify
-description: Verify a change end-to-end in a real browser, routed by one question - who needs this check to run again? Ephemeral checks walk the flows; regression-critical ones (auth, money, signup, checkout, deletion) get durable Playwright tests. An AI-walked flow yields "no issues found in the paths walked", never "e2e passes". Never production, never real user cookies. Use this skill whenever the user says "verify this in the browser", "test it end to end", "test my web app", "e2e test this", "write playwright tests", "run expect", "run browser-use", "smoke test the UI", or "/e2e-verify" - even if they do not name the skill. Not for native mobile (maestro-mobile-test), unit or integration authoring (write-tests), or debugging a failing e2e test (diagnose).
+description: Verify a change end-to-end in a real browser, routed by one question - who needs this check to run again? Ephemeral checks walk the flows; regression-critical ones (auth, money, signup, checkout, deletion) get durable Playwright tests. An AI-walked flow yields "no issues found in the paths walked", never "e2e passes". Never production, never real user cookies. Use this skill whenever the user says "verify this in the browser", "test it end to end", "test my web app", "e2e test this", "write playwright tests", "run expect", "run browser-use", "smoke test the UI", "test my browser extension", or "/e2e-verify" - even if they do not name the skill. Not for native mobile (maestro-mobile-test), unit or integration authoring (write-tests), or debugging a failing e2e test (diagnose).
 ---
 
 # E2E Verify
@@ -28,6 +28,15 @@ Do **not** auto-trigger for native mobile apps (`maestro-mobile-test`), unit/int
 | The flow is money/auth/signup/checkout/data-loss, or user says "add e2e tests", or the same flow has now been manually re-verified twice | **B: Durable** |
 | Feature just built and it's a critical flow | **A now, then B** — the smoke run's steps become the test's spec |
 
+## Keep the user's pointer out of it
+
+A check that needs the person's mouse idle is a check they cannot run while they work, so nobody runs it twice. Drive in-page flows through the browser's debugging protocol (Playwright, CDP, every engine below), which dispatches input inside the page and never moves the OS cursor.
+
+- ❌ Coordinate clicks or screen-driving computer-use tools for a flow that lives inside the page — they take the real pointer and the real focus.
+- ✅ Protocol-level input, headless or in a window nobody has to watch.
+- OS-level input is for native UI the protocol cannot reach (browser toolbar, native file pickers, permission prompts), only in a driver's background mode, and the report lists that step under **Not walked** unless it was observed working.
+- Say `Input: protocol` only after observing it: park the cursor, sample its position across the run, and count distinct positions. The recipe is in [references/chrome-extension.md](references/chrome-extension.md). Otherwise report `Input: not checked`.
+
 ## Route A: ephemeral verification
 
 Pick the engine by what's installed — the discipline is identical across engines:
@@ -43,13 +52,13 @@ Pick the engine by what's installed — the discipline is identical across engin
 - ✅ "Walked 3 flows against localhost:3000 (seeded account): login → dashboard (observed: redirect + username rendered), create invoice (observed: row appears, total 107.10, console clean), delete invoice (observed: 409 on double-delete — **finding**, quoted below). Not walked: mobile viewport, payment path (no test Stripe key). "
 Every flow walked is enumerated; every "works" is backed by a named observation; everything not walked is listed. Zero findings across enumerated flows is a valid outcome.
 
-Add the `Recording:` and `Delivered:` lines exactly as `record-browser-test` defines them, or `Recording: none - <why>`. A walk with no recording says so; the absence is never left implied.
+Add the `Recording:` and `Delivered:` lines exactly as `record-browser-test` defines them, or `Recording: none - <why>`. A walk with no recording says so; the absence is never left implied. Add `Input: protocol` or `Input: not checked` per the pointer rule above.
 
 ## Route B: durable Playwright tests
 
 `write-tests` discipline applied to the browser — plus the e2e-specific rules that keep suites from rotting:
 
-1. **Match the repo first.** Grep for `playwright.config`, `cypress.config`, an `e2e/` dir. Extend the existing setup and imitate its strongest test; only scaffold fresh (`npm init playwright@latest`) if nothing exists, and say so.
+1. **Match the repo first.** Grep for `playwright.config`, `cypress.config`, an `e2e/` dir. Extend the existing setup and imitate its strongest test; only scaffold fresh (`npm init playwright@latest`) if nothing exists, and say so. For a **Chrome extension** the launch, fixture, storage assertions and revision pitfalls are in [references/chrome-extension.md](references/chrome-extension.md) — a normal browser context does not load extensions.
 2. **Ration e2e tests by risk.** Each one is 100× a unit test's cost in time and flake surface. Test through the UI only what is *about* the flow: the user journey, the wiring, the redirect. Business-logic variations (12 discount cases) belong in unit tests — write the one journey here and note the push-down. A handful of journeys is a suite; fifty is a liability.
 3. **Selectors users would recognize:** `getByRole`, `getByLabel`, `getByTestId` — never CSS chains or `nth-child`, which weld the test to today's DOM.
    - ❌ `page.locator('div.card > button:nth-child(2)')` — breaks on any restyle, catches nothing a user cares about.
