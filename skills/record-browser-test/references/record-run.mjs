@@ -32,12 +32,14 @@ try {
       mask: { type: 'string', multiple: true },
       rehearse: { type: 'boolean' },
       'no-open': { type: 'boolean' },
+      open: { type: 'boolean' },
+      foreground: { type: 'boolean' },
       'show-query': { type: 'boolean' },
     },
   }));
 } catch (e) { fail(e.message); }
 
-if (!opt.url || !opt.body) fail('usage: node record-run.mjs --url <page> --body <test-body.js> [--out file.mp4] [--result file.json] [--setup setup.js] [--dwell ms] [--corner top-left|bottom-left] [--timeout s] [--chrome path] [--allow-host host] [--profile dir] [--mask selector]... [--rehearse] [--no-open] [--show-query]');
+if (!opt.url || !opt.body) fail('usage: node record-run.mjs --url <page> --body <test-body.js> [--out file.mp4] [--result file.json] [--setup setup.js] [--dwell ms] [--corner top-left|bottom-left] [--timeout s] [--chrome path] [--allow-host host] [--profile dir] [--mask selector]... [--rehearse] [--open] [--foreground] [--show-query]');
 for (const selector of opt.mask ?? []) if (!selector.trim() || /[{};<>\r\n]/.test(selector)) fail(`--mask needs a plain CSS selector with no braces, semicolons, angle brackets or newlines, got "${selector}"`);
 
 const number = (name, min, max) => {
@@ -84,6 +86,7 @@ const logPath = out.replace(/\.mp4$/i, '') + '.steps.json';
 const rawPath = out + '.raw';
 const openInBrowser = async (file) => {
   if (opt['no-open']) return 'skipped: --no-open';
+  if (!opt.open) return 'skipped: not requested (pass --open)';
   if (process.env.CI && !['0', 'false'].includes(process.env.CI.toLowerCase())) return 'skipped: CI environment';
   if (process.env.CLAUDE_CODE_SESSION_ATTENDED === '0') return 'skipped: unattended session';
   if (process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) return 'skipped: no display';
@@ -140,6 +143,7 @@ const flags = [
   '--auto-accept-this-tab-capture', '--window-size=1440,900', '--use-mock-keychain', '--password-store=basic',
   '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows',
 ];
+if (!opt.foreground) flags.push('--headless=new');
 if (!loopback && target.protocol === 'http:') flags.push(`--unsafely-treat-insecure-origin-as-secure=${target.origin}`);
 
 let launchError = null;

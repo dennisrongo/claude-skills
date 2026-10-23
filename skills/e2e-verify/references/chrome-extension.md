@@ -7,7 +7,7 @@ Written from one real setup: Playwright 1.64 on Windows, a Vite-built MV3 extens
 - Extensions load only in a **persistent context**: `chromium.launchPersistentContext(userDataDir, …)`. A plain `browser.newContext()` ignores them.
 - Run **Playwright's bundled Chromium** (or Chrome for Testing), not the user's installed branded Chrome. Recent branded Chrome builds ignore `--load-extension` (not re-observed — documented by the Chromium team). The reliable path is the Chromium Playwright manages.
 - **`headless: true` alone is not enough.** Playwright's default headless binary is the stripped-down headless shell, which does not load extensions: observed, the same build and flags gave a service worker with the full Chromium binary and none with the headless shell. Make the launch use full Chromium in new headless mode — `channel: 'chromium'` (documented by Playwright; not re-observed, that revision was not installed here) or an explicit `executablePath` to the full binary (observed working). With the full binary, headless ran every test.
-- Do not fall back to a visible window to "make it work" — a visible window can steal focus.
+- Do not fall back to a visible window to "make it work" — a visible window takes the user's keyboard focus (see the last section).
 - Test the **built output**, not the sources. Point `--load-extension` at the build directory and build first (`build && playwright test` as one script). A stale build produces a green run of old code.
 
 ## The fixture
@@ -75,21 +75,18 @@ Across ten full runs of a four-test suite, three had a test time out or fail in 
 - ❌ Raising the test timeout to make it pass. A longer timeout hides the hang and slows every later failure.
 - ❌ Reporting the second, green run alone.
 
-## Proving no OS pointer was used
+## Proving no OS pointer or focus was used
 
-Protocol-driven clicks (`locator.click()`) go to the page over the debugging protocol and never move the OS cursor. Say that only after observing it: park the cursor, sample it every 10 ms across the whole run, and count distinct positions.
+Protocol-driven clicks (`locator.click()`) go to the page over the debugging protocol and never move the OS cursor, and headless opens no window to take focus. Say that only after observing it, with the skill's sampler (Windows): start it in the background for longer than the run, run the suite, read its output.
 
 ```powershell
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);' -Name Native -Namespace Win
-[Win.Native]::SetCursorPos(300, 300) | Out-Null
-$job = Start-Job { Add-Type -AssemblyName System.Windows.Forms; $seen = @{}; $end = (Get-Date).AddSeconds(40); while ((Get-Date) -lt $end) { $p = [System.Windows.Forms.Cursor]::Position; $seen["$($p.X),$($p.Y)"] = 1; Start-Sleep -Milliseconds 10 }; $seen.Keys }
+Start-Process pwsh -ArgumentList '-NoProfile','-File','<skill-dir>/scripts/pointer-sample.ps1','-Seconds','40','-OutFile','pointer.txt' -WindowStyle Hidden
 npx playwright test
-$positions = Receive-Job -Job $job -Wait; Remove-Job $job
-"distinct positions: $($positions.Count)"
+Start-Sleep 40
+Get-Content pointer.txt
 ```
 
-One position across the run is the evidence. The person must keep their hands off the mouse for the window, or movement they cause is indistinguishable from the tool's: a sample taken only before and after the run proves nothing. This snippet is Windows; on another OS use that platform's cursor-position call the same way.
+One cursor position and one foreground window across the run is the evidence. The person must keep their hands off the mouse and windows for those seconds, or what they do is indistinguishable from the tool's; a sample taken only before and after the run proves nothing. Check focus as well as the cursor: a visible browser window can take the foreground without ever moving the pointer (observed with a headed recorder). The script is Windows-only; on another OS use that platform's cursor-position and active-window calls the same way.
 
 ## What protocol-level testing cannot reach
 

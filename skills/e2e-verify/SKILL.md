@@ -28,20 +28,21 @@ Do **not** auto-trigger for native mobile apps (`maestro-mobile-test`), unit/int
 | The flow is money/auth/signup/checkout/data-loss, or user says "add e2e tests", or the same flow has now been manually re-verified twice | **B: Durable** |
 | Feature just built and it's a critical flow | **A now, then B** — the smoke run's steps become the test's spec |
 
-## Keep the user's pointer out of it
+## Keep the user's pointer and focus out of it
 
 A check that needs the person's mouse idle is a check they cannot run while they work, so nobody runs it twice. Drive in-page flows through the browser's debugging protocol (Playwright, CDP, every engine below), which dispatches input inside the page and never moves the OS cursor.
 
 - ❌ Coordinate clicks or screen-driving computer-use tools for a flow that lives inside the page — they take the real pointer and the real focus.
 - ✅ Protocol-level input, headless or in a window nobody has to watch.
 - OS-level input is for native UI the protocol cannot reach (browser toolbar, native file pickers, permission prompts), only in a driver's background mode, and the report lists that step under **Not walked** unless it was observed working.
-- Say `Input: protocol` only after observing it: park the cursor, sample its position across the run, and count distinct positions. The recipe is in [references/chrome-extension.md](references/chrome-extension.md). Otherwise report `Input: not checked`.
+- **Focus counts as much as the pointer.** A browser window that opens takes the keyboard, so the user's typing lands in the test browser. Run headless; a visible window needs the user's explicit yes. Observed: a recorder's visible Chrome took the foreground from the user's window while the cursor never moved.
+- Say `Input: protocol` only after observing it with `scripts/pointer-sample.ps1` (Windows): it parks the cursor, then samples the cursor position and the foreground window across the run. Start it in the background, run the test, read its output: one cursor position and no new foreground window is the evidence. The user must keep hands off the mouse and windows for the sampled seconds, or their input is indistinguishable from the tool's. A cursor-only check proves nothing about focus. Otherwise report `Input: not checked`.
 
 ## Route A: ephemeral verification
 
 Pick the engine by what's installed — the discipline is identical across engines:
 
-1. **Scripted and recorded** (if installed: `record-browser-test`; probe: its `SKILL.md` exists in the skills directory, and Chrome is present). Use it when the flow stays on one page after sign-in and someone who did not watch the run will rely on the result: write the walk as a body with a `check` per requirement-derived expectation and run it recorded, so the video, not your summary, shows what ran. Multi-page flows, native dialogs and real-gesture-only handlers fall through to the engines below with `Recording: none - <why>`.
+1. **Scripted and recorded** (if installed: `record-browser-test`; probe: its `SKILL.md` exists in the skills directory, and Chrome is present). Use it when the flow stays on one page after sign-in and someone who did not watch the run will rely on the result: write the walk as a body with a `check` per requirement-derived expectation and run it recorded, so the video, not your summary, shows what ran; it runs headless by default, which keeps the user's pointer and focus free. Multi-page flows, native dialogs and real-gesture-only handlers fall through to the engines below with `Recording: none - <why>`.
 2. **Expect** (`/expect` in the agent, or `expect-cli` on PATH): prefer the `/expect` MCP integration where it is already wired up; the CLI's own TUI is deprecated and prints a banner saying so. Flags live on the `tui` subcommand, never at the top level — `expect --target branch` exits with `error: unknown option '--target'`. Shape per `expect tui --help` on 0.1.3: `expect tui --target branch -u <non-prod-url> --no-cookies -m "<what to test>" -y`. Mechanics, platform gotchas and what `init` writes are in [references/expect.md](references/expect.md); confirm the invocation with `expect --help` and `expect tui --help` rather than trusting either file. Its report is input, not verdict — extract which flows its subagents walked and what they observed.
 3. **browser-use** (`python -c "import browser_use"` succeeds, or the user names it): an AI agent drives headless Chromium from natural-language task scripts — strongest for exploratory walking where the agent *finds* broken flows. Setup, task-writing guidance, structured-output schemas, red-proof discipline, and troubleshooting live in [references/browser-use.md](references/browser-use.md); one-time install via `scripts/browser-use/setup.sh`. Its report is input, not verdict — same claim shape as every engine.
 4. **Claude drives the browser** (Playwright MCP, claude-in-chrome, preview tools — whatever this session has): enumerate the user-visible flows the diff touches (from the diff, not imagination), walk each one as a user would, and at each step verify via DOM/accessibility state for text and behavior (screenshots only for layout questions). After each flow: check the browser console for errors and the network log for failed requests — a page that looks right while logging exceptions is a finding, not a pass.
@@ -52,7 +53,7 @@ Pick the engine by what's installed — the discipline is identical across engin
 - ✅ "Walked 3 flows against localhost:3000 (seeded account): login → dashboard (observed: redirect + username rendered), create invoice (observed: row appears, total 107.10, console clean), delete invoice (observed: 409 on double-delete — **finding**, quoted below). Not walked: mobile viewport, payment path (no test Stripe key). "
 Every flow walked is enumerated; every "works" is backed by a named observation; everything not walked is listed. Zero findings across enumerated flows is a valid outcome.
 
-Add the `Recording:` and `Delivered:` lines exactly as `record-browser-test` defines them, or `Recording: none - <why>`. A walk with no recording says so; the absence is never left implied. Add `Input: protocol` or `Input: not checked` per the pointer rule above.
+Add the `Recording:` and `Delivered:` lines exactly as `record-browser-test` defines them, or `Recording: none - <why>`. A walk with no recording says so; the absence is never left implied. Add `Input: protocol (cursor positions: <n>, foreground changed: <yes|no>)` or `Input: not checked` per the pointer rule above.
 
 ## Route B: durable Playwright tests
 
