@@ -220,6 +220,8 @@ They stack rather than compete. One question routes them: **what does the result
 | Decide which flows to test, walk them, or write durable Playwright tests | [`e2e-verify`](./skills/e2e-verify/SKILL.md) |
 | A video that proves which tests ran and whether each check passed, so someone who didn't watch can replay it | [`record-browser-test`](./skills/record-browser-test/SKILL.md) (`e2e-verify` hands its walk to it) |
 
+Both stay out of your way while they run: in-page flows are driven over the browser's debugging protocol and recordings are headless by default, so neither takes your cursor or keyboard focus. A report says `Input: protocol` only after `e2e-verify`'s `scripts/pointer-sample.ps1` (Windows) watched the cursor and the foreground window stay put for the whole run.
+
 Neither skill cares which browser it drives. When several branches run at once, [`worktree-sandbox`](./skills/worktree-sandbox/SKILL.md) gives each worktree its own stack and Chromium, and its CDP URL is the browser either one uses.
 
 A walk that can't be recorded (several page loads, native dialogs) still gets verified by another `e2e-verify` engine, and its report says `Recording: none - <why>` instead of implying footage exists.
